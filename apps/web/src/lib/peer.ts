@@ -178,6 +178,12 @@ export type PeerOptions = {
   onConnected?(): void;
   /** The connection is connected again after the channel opened: how it runs now. */
   onPath?(path: OpenPath): void;
+  /**
+   * This side added the relay's TURN servers to the connection: the sender's
+   * fallback, or the recipient taking its restart-offer. Called once per add
+   * that the browser accepted; a recovery never adds it.
+   */
+  onRelayAdded?(): void;
 };
 
 export type Peer = {
@@ -791,6 +797,7 @@ function startPeer(options: PeerOptions, side: Direction): Peer {
     const pc = connection();
     pc.setConfiguration({ ...pc.getConfiguration(), iceServers: options.iceServers });
     relayAdded = true;
+    options.onRelayAdded?.();
   }
 
   /** Makes the offer that follows restartIce() and sends it as restart-offer. */
