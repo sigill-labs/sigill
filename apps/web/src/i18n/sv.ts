@@ -1264,7 +1264,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "Flikens ikon som den senast var, en grön prick medan en överföring pågick, en bock när den var klar eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, tills du rensar historiken. I vårt test på en dator sparade Chrome den senaste ikonen, Firefox och Safari verkade bara spara den som en sida öppnades med, och ett privat fönster i dem sparade ingen. Andra webbläsare har inte testats.",
+              "Flikens ikon som den senast var, en grön prick medan en överföring pågick, en bock när den var klar eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, tills du rensar historiken. I vårt test på en dator sparade Chrome den senaste ikonen, Firefox och Safari verkade bara spara den som en sida öppnades med, och ett privat fönster i dem sparade ingen. Andra webbläsare har inte testats. Om du valt Ljust eller Mörkt under Tema visar en logga som sparas där det valet, som webbläsaren ändå sparar.",
             ],
             ["", "Ditt val av tema och språk, i webbläsarens lokala lagring, tills du rensar den."],
             [
@@ -1472,7 +1472,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "Flikens ikon som den senast var, en grön prick medan överföringen pågick, en bock när den kommit fram eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, länken också, tills historiken rensas. I vårt test på en dator sparade Chrome den senaste ikonen, Firefox och Safari verkade bara spara den som en sida öppnades med, och ett privat fönster i dem sparade ingen. Andra webbläsare har inte testats.",
+              "Flikens ikon som den senast var, en grön prick medan överföringen pågick, en bock när den kommit fram eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, länken också, tills historiken rensas. I vårt test på en dator sparade Chrome den senaste ikonen, Firefox och Safari verkade bara spara den som en sida öppnades med, och ett privat fönster i dem sparade ingen. Andra webbläsare har inte testats. Om de valt Ljust eller Mörkt under Tema visar en logga som sparas där det valet, som webbläsaren ändå sparar.",
             ],
             ["", "Deras val av tema och språk, i webbläsarens lokala lagring, tills de rensas."],
           ],
