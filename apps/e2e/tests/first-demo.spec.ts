@@ -265,6 +265,17 @@ test("delivers a file to two recipients with a verified checksum", async ({
   });
   await expect(panel).toContainText("None. The file goes directly between browsers.");
   await expect(panel).toContainText(/[1-9]\d* setup messages? \(/);
+  // The drawer's trace log names each link by its server-side prefix, never the file.
+  const prefix = (link: string) => `${new URL(link).pathname.replace(/^\/r\//, "").slice(0, 6)}…`;
+  const senderTraces = sender.getByRole("region", {
+    name: "This transfer's traces",
+    includeHidden: true,
+  });
+  for (const link of links) {
+    await expect(senderTraces).toContainText(`link ID ${prefix(link)}`);
+  }
+  await expect(senderTraces).toContainText(/Connection: Direct, /);
+  await expect(senderTraces).not.toContainText(file.name);
 
   const recipientPanel = received[0]?.page.getByRole("region", {
     name: "What our server has right now",
@@ -276,6 +287,12 @@ test("delivers a file to two recipients with a verified checksum", async ({
     "Nothing about this page once it notices the connection has closed",
   );
   await expect(recipientPanel).toContainText(/[1-9]\d* setup messages? \(/);
+  const recipientTraces = recipientPanel.getByRole("region", {
+    name: "This transfer's traces",
+    includeHidden: true,
+  });
+  await expect(recipientTraces).toContainText(`link ID ${prefix(links[0] ?? "")}`);
+  await expect(recipientTraces).not.toContainText(file.name);
 });
 
 // A chunk is 48 KiB in Chromium (min(48 KiB, maxMessageSize - 64)): empty, one byte short of a
