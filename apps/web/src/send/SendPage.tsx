@@ -174,7 +174,7 @@ const fieldError = "m-0 text-destructive";
 const hint = "text-[0.9rem] text-muted-foreground";
 const stepLabel = "m-0 mb-1 text-[0.85rem] font-medium text-muted-foreground";
 const GLIDE_MS = 450;
-/** On the last open step: tall enough to the page's end that a glide always brings its top to its scroll margin. */
+/** On the last step shown, and on step 2 until the sender reaches step 3: tall enough to the page's end that a glide always brings its top to its scroll margin. */
 const lastStep = "min-h-[calc(100dvh-4rem)]";
 
 /** Scrolls the window to `el` with an ease-in-out curve; stops if the user scrolls, jumps if they prefer less motion. */
@@ -936,7 +936,6 @@ export function SendPage({
     setFileError("");
     setNameError("");
     setContinued(false);
-    setAtLinks(false);
     setCue(null);
     const box = document.getElementById("secret-text");
     if (text && box instanceof HTMLTextAreaElement) {
@@ -1461,11 +1460,11 @@ export function SendPage({
               </div>
             </div>
           </details>
-          {/* Leads to the links until the first one moves: from then on step 3 has the sender's attention. */}
+          {/* Leads to the links until the sender has reached them and the first one moves: from then on step 3 has their attention. */}
           <Button
             type="button"
             className="mt-6"
-            disabled={!hasRecipients || started}
+            disabled={!hasRecipients || (started && atLinks)}
             onClick={goToLinks}
           >
             {t.send.continue}
