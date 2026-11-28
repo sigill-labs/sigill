@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { describeTrace } from "../lib/format.ts";
-import type { Part, Role, Stated, TraceEntry, Until, What } from "../lib/trace-log.ts";
+import {
+  placeOf,
+  type Role,
+  type Stated,
+  type TraceEntry,
+  type Until,
+  type What,
+} from "../lib/trace-log.ts";
 import type { Lang } from "./language.ts";
 
 // One line of each kind. Typed by kind, so a new kind fails the typecheck until it is added here.
@@ -96,7 +103,6 @@ const untils: Until[] = [
   ...Object.keys(stated).map((how) => ({ kind: "stated" as const, how: how as Stated })),
 ];
 
-const parts: Part[] = ["server", "serverLog", "relay", "browser", "peer", "connection"];
 const roles: Role[] = ["sender", "recipient"];
 const langs: Lang[] = ["en", "sv"];
 
@@ -105,80 +111,147 @@ function check(text: string, label: string) {
   assert.doesNotMatch(text, /undefined|NaN|\[object|\$\{/, label);
 }
 
-test("every kind of line reads in both languages", () => {
+test("every kind of line reads in both languages, with who holds it, where and for how long", () => {
   const at = new Date(2026, 10, 28, 14, 2, 3).getTime();
   for (const lang of langs) {
     for (const role of roles) {
       for (const what of Object.values(lines).flat()) {
-        for (const part of parts) {
-          for (const until of untils) {
-            const entry: TraceEntry = { at, part, what, until };
-            const line = describeTrace(entry, role, lang);
-            const label = `${lang} ${role} ${part} ${JSON.stringify(what)} ${JSON.stringify(until)}`;
-            assert.equal(line.time, "14:02:03", label);
-            check(line.part, label);
-            if (what.kind === "newTransfer") {
-              assert.equal(line.label, undefined, label);
-            } else {
-              check(line.label ?? "", label);
-            }
-            check(line.what, label);
-            check(line.until, label);
+        for (const until of untils) {
+          const line = describeTrace({ at, what, until }, role, lang);
+          const label = `${lang} ${role} ${JSON.stringify(what)} ${JSON.stringify(until)}`;
+          assert.equal(line.time, "14:02:03", label);
+          if (what.kind === "newTransfer") {
+            assert.equal(line.who, undefined, label);
+          } else {
+            check(line.who?.text ?? "", label);
           }
+          // Only the route between the browsers, and the marker, are kept nowhere.
+          if (what.kind === "path" || what.kind === "newTransfer") {
+            assert.equal(line.where, undefined, label);
+          } else {
+            check(line.where ?? "", label);
+          }
+          check(line.what, label);
+          check(line.duration, label);
         }
       }
     }
   }
 });
 
+test("each documented end reads as a short duration", () => {
+  const expected: Record<Lang, Record<Stated, string>> = {
+    en: {
+      connection: "while connected",
+      dropped: "about 1 min",
+      log30d: "30 days",
+      notKept: "not kept",
+      tab: "until tab closes",
+      credential5m: "5 min",
+      relay7d: "up to 7 days",
+      history: "until history is cleared",
+      peerConnection: "while connected",
+      attempt: "until transfer ends",
+    },
+    sv: {
+      connection: "under anslutningen",
+      dropped: "ungefär 1 min",
+      log30d: "30 dagar",
+      notKept: "sparas inte",
+      tab: "tills fliken stängs",
+      credential5m: "5 min",
+      relay7d: "upp till 7 dagar",
+      history: "tills historiken rensas",
+      peerConnection: "under anslutningen",
+      attempt: "tills överföringen slutar",
+    },
+  };
+  const what: What = { kind: "connected" };
+  for (const lang of langs) {
+    for (const how of Object.keys(stated) as Stated[]) {
+      const line = describeTrace({ at: 0, what, until: { kind: "stated", how } }, "sender", lang);
+      assert.equal(line.duration, expected[lang][how], `${lang} ${how}`);
+    }
+  }
+  const delivered: What = { kind: "delivered", secret: false };
+  assert.equal(
+    describeTrace({ at: 0, what: delivered, until: { kind: "stays" } }, "sender", "en").duration,
+    "until deleted",
+  );
+  assert.equal(
+    describeTrace({ at: 0, what: delivered, until: { kind: "stays" } }, "sender", "sv").duration,
+    "tills den raderas",
+  );
+});
+
+test("a trace this page saw end says how long it lasted", () => {
+  const at = new Date(2026, 0, 1, 14, 2, 11).getTime();
+  const lasted = (ms: number, lang: Lang) =>
+    describeTrace(
+      { at, what: { kind: "connected" }, until: { kind: "seen", at: at + ms } },
+      "sender",
+      lang,
+    ).duration;
+  assert.equal(lasted(29_400, "en"), "lasted 29 s");
+  assert.equal(lasted(29_400, "sv"), "varade 29 s");
+  assert.equal(lasted(0, "en"), "lasted under 1 s");
+  assert.equal(lasted(4 * 60_000 + 59_000, "en"), "lasted 4 min");
+  assert.equal(lasted(65 * 60_000, "sv"), "varade 1 h 5 min");
+});
+
 test("lines show link IDs as their prefix and an ellipsis, and sizes in words", () => {
   const at = 0;
   const until: Until = { kind: "stated", how: "log30d" };
   const english = describeTrace(
-    { at, part: "server", what: { kind: "holdsLink", link: "abc123" }, until },
+    { at, what: { kind: "holdsLink", link: "abc123" }, until },
     "sender",
     "en",
   );
   assert.equal(english.what, "Link ID abc123…, never the part of the link that unlocks it.");
-  assert.equal(english.label, "Link ID");
-  assert.equal(english.until, "kept in our server's log for 30 days");
+  assert.deepEqual(english.who, { kind: "server", text: "Server" });
+  assert.equal(english.where, "Memory");
+  assert.equal(english.duration, "30 days");
   const relayed = describeTrace(
-    { at, part: "server", what: { kind: "relayed", link: "abc123", count: 2, bytes: 9200 }, until },
+    { at, what: { kind: "relayed", link: "abc123", count: 2, bytes: 9200 }, until },
     "recipient",
     "sv",
   );
   assert.match(relayed.what, /2 krypterade uppkopplingsmeddelanden \(9,2 KB\) för länk-ID abc123…/);
-  const seen = describeTrace(
-    {
-      at,
-      part: "server",
-      what: { kind: "connected" },
-      until: { kind: "seen", at: new Date(2026, 0, 1, 14, 2, 40).getTime() },
-    },
-    "sender",
-    "en",
-  );
-  assert.equal(seen.until, "gone at 14:02:40");
 });
 
-test("the other browser is named by whose page it is", () => {
-  const entry: TraceEntry = {
-    at: 0,
-    part: "peer",
-    what: { kind: "delivered", secret: false },
-    until: { kind: "stays" },
-  };
-  assert.equal(describeTrace(entry, "sender", "en").part, "The recipient's browser");
-  assert.equal(describeTrace(entry, "sender", "en").until, "until they delete it");
-  assert.equal(describeTrace(entry, "recipient", "sv").part, "Avsändarens webbläsare");
+test("the browsers are named by their role, relative to this page", () => {
+  const delivered: What = { kind: "delivered", secret: false };
+  assert.deepEqual(placeOf(delivered, "sender"), { who: "recipient", where: "disk" });
+  assert.deepEqual(placeOf(delivered, "recipient"), { who: "sender", where: "disk" });
+  assert.deepEqual(placeOf({ kind: "linkKey", link: "abc123" }, "recipient"), {
+    who: "recipient",
+    where: "memory",
+  });
+  assert.deepEqual(placeOf({ kind: "addressBar" }, "recipient"), {
+    who: "recipient",
+    where: "addressBar",
+  });
+  const entry: TraceEntry = { at: 0, what: delivered, until: { kind: "stays" } };
+  assert.equal(describeTrace(entry, "sender", "en").who?.text, "Recipient");
+  assert.equal(describeTrace(entry, "recipient", "sv").who?.text, "Avsändare");
 });
 
-test("a received or delivered line is labelled a file or a secret", () => {
-  const until: Until = { kind: "stays" };
-  const label = (what: What, lang: Lang) =>
-    describeTrace({ at: 0, part: "browser", what, until }, "recipient", lang).label;
-  assert.equal(label({ kind: "received", secret: false }, "en"), "File");
-  assert.equal(label({ kind: "received", secret: true }, "sv"), "Hemlighet");
-  assert.equal(label({ kind: "delivered", secret: true }, "en"), "Secret");
-  assert.equal(label({ kind: "newTransfer" }, "en"), undefined);
+test("a received or delivered secret stays in memory, a file on disk", () => {
+  assert.equal(placeOf({ kind: "received", secret: false }, "recipient")?.where, "disk");
+  assert.equal(placeOf({ kind: "received", secret: true }, "recipient")?.where, "memory");
+  assert.equal(placeOf({ kind: "delivered", secret: true }, "sender")?.where, "memory");
+});
+
+test("server log lines are the server's log, its state its memory, and the relay's memory", () => {
+  assert.deepEqual(placeOf({ kind: "logJoined", link: "abc123" }, "sender"), {
+    who: "server",
+    where: "log",
+  });
+  assert.deepEqual(placeOf({ kind: "paired", link: "abc123" }, "sender"), {
+    who: "server",
+    where: "memory",
+  });
+  assert.deepEqual(placeOf({ kind: "relayCarries" }, "sender"), { who: "relay", where: "memory" });
+  assert.deepEqual(placeOf({ kind: "path", path: "relay" }, "sender"), { who: "connection" });
+  assert.equal(placeOf({ kind: "newTransfer" }, "sender"), undefined);
 });

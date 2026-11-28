@@ -10,7 +10,7 @@ import { useI18n } from "./i18n/I18n.tsx";
 import { LANGUAGE_NAMES, type Lang, localizedPath } from "./i18n/language.ts";
 import { describeTrace } from "./lib/format.ts";
 import type { OpenPath } from "./lib/peer.ts";
-import { type TraceLog as Log, tracesLeft } from "./lib/trace-log.ts";
+import { type TraceLog as Log, tracesLeft, type Who } from "./lib/trace-log.ts";
 import type { Theme } from "./theme.ts";
 
 export const ICONS = {
@@ -559,9 +559,20 @@ export function PathLine({ path }: { path: OpenPath }) {
   );
 }
 
+// One colour per holder, light and dark, each at least 4.5:1 for text-xs (WCAG 1.4.3). The word
+// on the pill carries the meaning; the colour only helps tell holders apart.
+const WHO_CLASSES: Record<Who, string> = {
+  server: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  relay: "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200",
+  sender: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  recipient: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  connection: "bg-muted text-foreground",
+};
+
 /**
- * This page's traces, oldest first, each with when this page saw it, who holds it, a tag
- * naming the kind of data, what and until when. No live region: a line per signaling message would flood a screen reader.
+ * This page's traces, oldest first, each with when this page saw it, who holds it and where, what
+ * it is and for how long. Screen readers hear a line as "14:02:11 Server, Memory, lasted 29 s: Link
+ * ID abc123…". No live region: a line per signaling message would flood a screen reader.
  */
 export function TraceLog({ log }: { log: Log }) {
   const { t, lang } = useI18n();
@@ -577,23 +588,37 @@ export function TraceLog({ log }: { log: Log }) {
             return (
               // Keyed by index: lines only change or drop off the front, and hold no state of their own.
               <li key={index} class="wrap-anywhere">
-                <time
-                  datetime={new Date(entry.at).toISOString()}
-                  class="text-muted-foreground tabular-nums"
-                >
-                  {line.time}
-                </time>{" "}
-                <span class="font-medium">{line.part}:</span>{" "}
-                {line.label !== undefined && (
-                  <>
-                    <span class="inline-block rounded-full border border-border bg-muted px-2 text-xs leading-5 text-foreground">
-                      {line.label}
-                    </span>
-                    {/* The tag reads as its own phrase, not run into the sentence after it. */}
-                    <span class="sr-only">:</span>{" "}
-                  </>
-                )}
-                {line.what} <span class="text-muted-foreground">({line.until})</span>
+                {/* The first line: when, who, where and for how long, at the right edge even when it wraps; the text goes under it. */}
+                <span class="flex flex-wrap items-baseline gap-x-2">
+                  <time
+                    datetime={new Date(entry.at).toISOString()}
+                    class="text-muted-foreground tabular-nums"
+                  >
+                    {line.time}
+                  </time>{" "}
+                  {/* The marker that starts a new transfer holds nothing, so it has no pills or duration. */}
+                  {line.who && (
+                    <>
+                      <span
+                        class={`inline-block rounded-full px-2 text-xs leading-5 font-medium ${WHO_CLASSES[line.who.kind]}`}
+                      >
+                        {line.who.text}
+                      </span>
+                      <span class="sr-only">, </span>
+                      {line.where !== undefined && (
+                        <>
+                          <span class="inline-block rounded-full border border-border px-2 text-xs leading-5 text-foreground">
+                            {line.where}
+                          </span>
+                          <span class="sr-only">, </span>
+                        </>
+                      )}
+                      <span class="ms-auto text-end text-muted-foreground">{line.duration}</span>
+                    </>
+                  )}
+                </span>
+                <span class="sr-only">: </span>
+                <span class="block">{line.what}</span>
               </li>
             );
           })}

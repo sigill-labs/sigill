@@ -131,7 +131,7 @@ test("a text goes from /send/secret to the recipient, who shows and copies it", 
   const { page, downloads } = await openRecipient(actor, link);
   await expect(page.getByRole("heading", { name: `${from} sent you a secret` })).toBeFocused();
   const recipientTraces = page.getByRole("region", { name: "Traces" });
-  await expect(recipientTraces).toContainText(/Connection: Route: Direct, /);
+  await expect(recipientTraces).toContainText(/Connection, [^:]*: Route: direct, /);
   await expect(recipientTraces).not.toContainText(/\bfiles?\b/i);
   await expect(page.getByText("Name typed by the sender, not verified.")).toBeVisible();
   const show = page.getByRole("button", { name: "Show", exact: true });

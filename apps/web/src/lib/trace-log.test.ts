@@ -5,10 +5,12 @@ import {
   createTraceLog,
   fromMessage,
   MAX_ENTRIES,
+  placeOf,
   type Role,
   record,
   recordAt,
   type SignalMessage,
+  type TraceEntry,
   type TraceEvent,
   type TraceLog,
   tracesLeft,
@@ -25,6 +27,12 @@ function play(role: Role, ...events: (TraceEvent | SignalMessage)[]): TraceLog {
     return event ? record(log, event, T0 + index) : log;
   }, createTraceLog(role));
 }
+
+/** Who holds a line's trace on the sender's page. */
+const whoOf = (entry: TraceEntry | undefined) => entry && placeOf(entry.what, "sender")?.who;
+const inServerMemory = (entry: TraceEntry) =>
+  placeOf(entry.what, "sender")?.who === "server" &&
+  placeOf(entry.what, "sender")?.where === "memory";
 
 const kinds = (log: TraceLog) => log.entries.map((entry) => entry.what.kind);
 
@@ -51,9 +59,9 @@ test("a host names each new link once, and drops the ones a later host leaves ou
   assert.deepEqual(first?.until, { kind: "stated", how: "connection" });
   assert.deepEqual(second?.what, { kind: "holdsLink", link: "zyx987" });
   assert.deepEqual(second?.until, { kind: "seen", at: T0 + 2 });
-  assert.equal(second?.part, "server");
+  assert.equal(whoOf(second), "server");
   assert.deepEqual(logged?.what, { kind: "logHost", links: 2 });
-  assert.equal(logged?.part, "serverLog");
+  assert.deepEqual(logged && placeOf(logged.what, "sender"), { who: "server", where: "log" });
   assert.deepEqual(again?.what, { kind: "logHost", links: 1 });
 });
 
@@ -79,7 +87,7 @@ test("joined with TURN URLs adds credentials; without them only the STUN line", 
   ]);
   assert.deepEqual(withTurn.entries[3]?.until, { kind: "stated", how: "credential5m" });
   assert.deepEqual(withTurn.entries[4]?.until, { kind: "stated", how: "relay7d" });
-  assert.equal(withTurn.entries[4]?.part, "relay");
+  assert.equal(whoOf(withTurn.entries[4]), "relay");
 
   const stunOnly = play("recipient", joined(["stun:turn.example:3478"]));
   assert.deepEqual(kinds(stunOnly), ["paired", "logJoined", "stunSees"]);
@@ -141,7 +149,7 @@ test("a dropped connection gets the stated hold; a clean close is seen", () => {
     later: false,
   });
   assert.deepEqual(dropped.entries.at(-2)?.what, { kind: "logHostClosed", links: 2 });
-  for (const entry of dropped.entries.filter((entry) => entry.part === "server")) {
+  for (const entry of dropped.entries.filter(inServerMemory)) {
     assert.deepEqual(entry.until, { kind: "stated", how: "dropped" });
     assert.equal(entry.open, undefined);
   }
@@ -151,7 +159,7 @@ test("a dropped connection gets the stated hold; a clean close is seen", () => {
     code: 1000,
   });
   assert.deepEqual(kinds(clean).at(-1), "logLeft");
-  for (const entry of clean.entries.filter((entry) => entry.part === "server")) {
+  for (const entry of clean.entries.filter(inServerMemory)) {
     assert.deepEqual(entry.until, { kind: "seen", at: T0 + 2 });
   }
 
@@ -212,7 +220,7 @@ test("links, paths, the relay and delivery end as the page sees them", () => {
   assert.deepEqual(log.entries[2]?.until, { kind: "seen", at: T0 + 3 });
   assert.deepEqual(log.entries[3]?.until, { kind: "seen", at: T0 + 5 });
   assert.deepEqual(log.entries[5]?.until, { kind: "stays" });
-  assert.equal(log.entries[5]?.part, "peer");
+  assert.equal(whoOf(log.entries[5]), "recipient");
   assert.deepEqual(play("sender", { t: "delivered", secret: true }).entries[0]?.until, {
     kind: "stated",
     how: "tab",

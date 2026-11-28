@@ -3,7 +3,7 @@
 //
 // The page feeds it events as it sees them: its signaling socket opening and closing, each
 // message it sends or receives, and what its peer connection does. Each event adds lines that say
-// which part holds what, and until when. A line for something that lasts stays open until the
+// who holds what, and until when. A line for something that lasts stays open until the
 // event that ends it, which closes it with the time this page saw that; otherwise its end is what
 // the server or relay is documented to do (apps/server/src/signaling.ts, docs/how-fidant-works.md).
 //
@@ -28,14 +28,11 @@ const LINK_PREFIX = 6;
 /** Which page keeps the log. */
 export type Role = "sender" | "recipient";
 
-/** Who holds a trace: our server, our server's log, our relay, this browser, the other browser, or the route between them. */
-export type Part = "server" | "serverLog" | "relay" | "browser" | "peer" | "connection";
-
 /** A path a connection that opened took. */
 export type OpenPath = Exclude<ConnectionPath, "failed">;
 
 /**
- * What a part is documented to do with a trace:
+ * What a holder is documented to do with a trace:
  * - `connection`: until this page's connection to the server closes, at once when it closes cleanly.
  * - `dropped`: the connection dropped, so the server lets go within a minute, and keeps a transfer's place up to 30 s.
  * - `log30d`: in our server's log for 30 days.
@@ -65,7 +62,7 @@ export type Until =
   | { kind: "stated"; how: Stated }
   | { kind: "stays" };
 
-/** What a part holds. `link` is always a 6-character prefix. */
+/** What a holder holds. `link` is always a 6-character prefix. */
 export type What =
   // Our server
   | { kind: "connected" }
@@ -107,93 +104,80 @@ export type What =
   // The connection
   | { kind: "path"; path: OpenPath };
 
-const PARTS: Record<What["kind"], Part> = {
-  connected: "server",
-  holdsLink: "server",
-  holdsLinkMaybe: "server",
-  alreadyHosted: "server",
-  paired: "server",
-  rejoined: "server",
-  credentials: "server",
-  relayed: "server",
-  serverToken: "server",
-  logHost: "serverLog",
-  logJoined: "serverLog",
-  logRelay: "serverLog",
-  logRefused: "serverLog",
-  logLeft: "serverLog",
-  logHostGone: "serverLog",
-  logHostClosed: "serverLog",
-  logPath: "serverLog",
-  logResume: "serverLog",
-  logError: "serverLog",
-  stunSees: "relay",
-  relayAdded: "relay",
-  relayCarries: "relay",
-  linkKey: "browser",
-  relayCredentials: "browser",
-  browserToken: "browser",
-  addressBar: "browser",
-  received: "browser",
-  newTransfer: "browser",
-  delivered: "peer",
-  path: "connection",
-};
+/** Who holds a trace: our server, our relay, a browser by its role, or the route between the browsers. */
+export type Who = "server" | "relay" | Role | "connection";
 
-/** The kind of data a line's trace is, shown as a tag on the line. */
-export type Label =
-  | "ipAddress"
-  | "linkId"
-  | "timing"
-  | "relayCredentials"
-  | "encryptedMessages"
-  | "encryptedData"
-  | "token"
-  | "logLine"
-  | "linkAndKey"
-  | "file"
-  | "secret"
-  | "route";
+/** Where a holder keeps a trace: in memory, in a log, in the address bar and history, or on disk. */
+export type Where = "memory" | "log" | "addressBar" | "disk";
 
-// Keyed by kind, so a new kind fails the typecheck until it is labelled here. `received` and
-// `delivered` are a file or a secret, so labelOf picks theirs; the marker has none.
-const LABELS: Record<Exclude<What["kind"], "received" | "delivered">, Label | undefined> = {
-  connected: "ipAddress",
-  holdsLink: "linkId",
-  holdsLinkMaybe: "linkId",
-  alreadyHosted: "linkId",
-  paired: "ipAddress",
-  rejoined: "timing",
-  credentials: "relayCredentials",
-  relayed: "encryptedMessages",
-  serverToken: "token",
-  logHost: "logLine",
-  logJoined: "logLine",
-  logRelay: "logLine",
-  logRefused: "logLine",
-  logLeft: "logLine",
-  logHostGone: "logLine",
-  logHostClosed: "logLine",
-  logPath: "logLine",
-  logResume: "logLine",
-  logError: "logLine",
-  stunSees: "ipAddress",
-  relayAdded: "ipAddress",
-  relayCarries: "encryptedData",
-  linkKey: "linkAndKey",
-  relayCredentials: "relayCredentials",
-  browserToken: "token",
-  addressBar: "linkAndKey",
+/** A holder relative to the page: this page's browser, or the other one. */
+type Holder = Exclude<Who, Role> | "page" | "peer";
+
+// Keyed by kind, so a new kind fails the typecheck until it is placed here. A received or
+// delivered secret stays in memory, so placeOf moves it off disk. The route between the browsers
+// is kept nowhere, so it has no `where`, and the new-transfer marker has no holder.
+const PLACES: Record<What["kind"], { holder: Holder; where?: Where } | undefined> = {
+  connected: { holder: "server", where: "memory" },
+  holdsLink: { holder: "server", where: "memory" },
+  holdsLinkMaybe: { holder: "server", where: "memory" },
+  alreadyHosted: { holder: "server", where: "memory" },
+  paired: { holder: "server", where: "memory" },
+  // The server knows of the drop from its log, which shows the page joining twice.
+  rejoined: { holder: "server", where: "log" },
+  credentials: { holder: "server", where: "memory" },
+  relayed: { holder: "server", where: "memory" },
+  serverToken: { holder: "server", where: "memory" },
+  logHost: { holder: "server", where: "log" },
+  logJoined: { holder: "server", where: "log" },
+  logRelay: { holder: "server", where: "log" },
+  logRefused: { holder: "server", where: "log" },
+  logLeft: { holder: "server", where: "log" },
+  logHostGone: { holder: "server", where: "log" },
+  logHostClosed: { holder: "server", where: "log" },
+  logPath: { holder: "server", where: "log" },
+  logResume: { holder: "server", where: "log" },
+  logError: { holder: "server", where: "log" },
+  stunSees: { holder: "relay", where: "memory" },
+  relayAdded: { holder: "relay", where: "memory" },
+  relayCarries: { holder: "relay", where: "memory" },
+  linkKey: { holder: "page", where: "memory" },
+  relayCredentials: { holder: "page", where: "memory" },
+  browserToken: { holder: "page", where: "memory" },
+  addressBar: { holder: "page", where: "addressBar" },
+  received: { holder: "page", where: "disk" },
   newTransfer: undefined,
-  path: "route",
+  delivered: { holder: "peer", where: "disk" },
+  path: { holder: "connection" },
 };
 
-/** The kind of data a line holds, or undefined for the marker that starts a new transfer. */
-export function labelOf(what: What): Label | undefined {
-  if (what.kind === "received" || what.kind === "delivered") {
-    return what.secret ? "secret" : "file";
+/** Who holds a line's trace and where, on the page of `role`; undefined for the new-transfer marker. */
+export function placeOf(what: What, role: Role): { who: Who; where?: Where } | undefined {
+  const place = PLACES[what.kind];
+  if (place === undefined) {
+    return undefined;
   }
-  return LABELS[what.kind];
+  const who: Who =
+    place.holder === "page"
+      ? role
+      : place.holder === "peer"
+        ? role === "sender"
+          ? "recipient"
+          : "sender"
+        : place.holder;
+  const secret = (what.kind === "received" || what.kind === "delivered") && what.secret;
+  const where = secret ? "memory" : place.where;
+  return where === undefined ? { who } : { who, where };
+}
+
+/** How long a trace lasts: as long as this page saw it last, as documented, or until deleted. */
+export type Duration =
+  | { kind: "lasted"; ms: number }
+  | { kind: "stated"; how: Stated }
+  | { kind: "stays" };
+
+export function duration(entry: TraceEntry): Duration {
+  const { until } = entry;
+  return until.kind === "seen" ? { kind: "lasted", ms: Math.max(0, until.at - entry.at) } : until;
 }
 
 /**
@@ -202,7 +186,6 @@ export function labelOf(what: What): Label | undefined {
  */
 export type TraceEntry = {
   readonly at: number;
-  readonly part: Part;
   readonly what: What;
   readonly until: Until;
   readonly open?: string;
@@ -404,7 +387,7 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
   let { attempts, armed, lastJoin, restarting, refusing, lastHost, uncertain } = log.tracking;
 
   const add = (what: What, until: Until, open?: string) => {
-    entries.push({ at: now, part: PARTS[what.kind], what, until, ...(open && { open }) });
+    entries.push({ at: now, what, until, ...(open && { open }) });
   };
   const stated = (how: Stated): Until => ({ kind: "stated", how });
   const seen: Until = { kind: "seen", at: now };
@@ -412,7 +395,7 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
   const close = (match: (entry: TraceEntry) => boolean, until: Until = seen) => {
     entries.forEach((entry, index) => {
       if (entry.open !== undefined && match(entry)) {
-        entries[index] = { at: entry.at, part: entry.part, what: entry.what, until };
+        entries[index] = { at: entry.at, what: entry.what, until };
       }
     });
   };

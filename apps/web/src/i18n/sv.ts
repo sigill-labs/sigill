@@ -58,30 +58,21 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const traces: TraceTexts = {
   title: "Spår",
-  button: (left) => (left === 0 ? "Spår" : `Spår, ${left} kvar`),
-  note: 'Tiderna är när den här sidan såg varje händelse. En tid efter "borta" är när den här sidan såg att spåret försvann. Alla andra slut är så som vår server och vårt relä är byggda att bete sig, vilket den här sidan inte kan kontrollera.',
+  button: (left) => (left === 0 ? "Spår" : `Spår, ${left} finns kvar`),
+  note: 'Tiderna är när den här sidan såg varje händelse. "Varade" är hur länge den här sidan såg att ett spår fanns kvar. Alla andra tider är så som vår server, vårt relä och webbläsarna är byggda att bete sig, vilket den här sidan inte kan kontrollera.',
   empty: "Inget ännu.",
-  parts: {
-    server: () => "Vår server",
-    serverLog: () => "Vår servers logg",
-    relay: () => "Vårt relä",
-    browser: () => "Den här webbläsaren",
-    peer: (role) => (role === "sender" ? "Mottagarens webbläsare" : "Avsändarens webbläsare"),
-    connection: () => "Anslutningen",
+  who: {
+    server: "Server",
+    relay: "Relä",
+    sender: "Avsändare",
+    recipient: "Mottagare",
+    connection: "Anslutning",
   },
-  labels: {
-    ipAddress: "IP-adress",
-    linkId: "Länk-ID",
-    timing: "Tidpunkt",
-    relayCredentials: "Inloggningsuppgifter till reläet",
-    encryptedMessages: "Krypterade meddelanden",
-    encryptedData: "Krypterad data",
-    token: "Slumpmässigt värde",
-    logLine: "Loggrad",
-    linkAndKey: "Länk och nyckel",
-    file: "Fil",
-    secret: "Hemlighet",
-    route: "Väg",
+  where: {
+    memory: "Minne",
+    log: "Logg",
+    addressBar: "Adressfält",
+    disk: "Disk",
   },
   what: {
     connected: () =>
@@ -164,26 +155,22 @@ const traces: TraceTexts = {
       secret
         ? "Hemligheten, kontrollerad mot det den här sidan skickade."
         : "Filen, kontrollerad mot det den här sidan skickade.",
-    path: ({ path }) =>
-      `${traces.paths[path].charAt(0).toUpperCase()}${traces.paths[path].slice(1)}.`,
+    path: ({ path }) => `Väg: ${traces.paths[path]}.`,
   },
   stated: {
-    connection: () => "tills den här sidans anslutning till vår server stängs",
-    dropped: () =>
-      "anslutningen bröts, så vår server släpper den inom en minut, efter att ha hållit kvar en överförings plats i upp till 30 sekunder",
-    log30d: () => "sparas i vår servers logg i 30 dagar",
-    notKept: () => "sparas inte",
-    tab: (part) =>
-      part === "peer" ? "medan deras flik är öppen" : "medan den här fliken är öppen",
-    credential5m: () => "kan användas i 5 minuter för att starta en anslutning via reläet",
-    relay7d: () =>
-      "loggas inte; en tillfällig logg, bara för att felsöka eller stoppa missbruk, sparas i högst 7 dagar",
-    history: () => "tills webbläsarens historik rensas",
-    peerConnection: () => "tills anslutningen mellan de två webbläsarna stängs",
-    attempt: () => "tills det här överföringsförsöket tar slut",
+    connection: "under anslutningen",
+    dropped: "ungefär 1 min",
+    log30d: "30 dagar",
+    notKept: "sparas inte",
+    tab: "tills fliken stängs",
+    credential5m: "5 min",
+    relay7d: "upp till 7 dagar",
+    history: "tills historiken rensas",
+    peerConnection: "under anslutningen",
+    attempt: "tills överföringen slutar",
   },
-  seen: (clock) => `borta kl. ${clock}`,
-  stays: (role) => (role === "sender" ? "tills de raderar den" : "tills du raderar den"),
+  lasted: (span) => `varade ${span}`,
+  stays: "tills den raderas",
   refused: {
     used: "länken var redan använd",
     busy: "avsändaren var upptagen med en annan mottagare",

@@ -3,7 +3,7 @@
 
 import type { ConnectionPath, ErrorCode, LogFields, RefusedReason } from "@fidant/protocol";
 import type { Line } from "../how/traces.ts";
-import type { Label, Part, Role, Stated, What } from "../lib/trace-log.ts";
+import type { Role, Stated, What, Where, Who } from "../lib/trace-log.ts";
 
 /** A place on the /how/traces explorer and the traces it keeps. */
 export type Place = { name: string; kept: string; never: string; lines: readonly Line[] };
@@ -60,21 +60,23 @@ export type TraceContext = { role: Role; size: (bytes: number) => string };
 export type TraceTexts = {
   /** Names the drawer and the receive page's disclosure that hold the log. */
   title: string;
-  /** The send page's Traces button's name, with how many traces are still left. */
+  /** The send page's Traces button's name, with how many traces are still kept. */
   button: (left: number) => string;
   note: string;
   empty: string;
-  parts: Record<Part, (role: Role) => string>;
-  /** The tag on each line that names the kind of data it holds. */
-  labels: Record<Label, string>;
+  /** The pill that names who holds a line's trace. */
+  who: Record<Who, string>;
+  /** The pill that names where the holder keeps it. */
+  where: Record<Where, string>;
   what: {
     [K in What["kind"]]: (what: Extract<What, { kind: K }>, context: TraceContext) => string;
   };
-  /** The part's own wording of a documented end. */
-  stated: Record<Stated, (part: Part) => string>;
-  /** `clock` is already formatted, like "14:02:40". */
-  seen: (clock: string) => string;
-  stays: (role: Role) => string;
+  /** How long a trace lasts as documented, in a few words. */
+  stated: Record<Stated, string>;
+  /** How long this page saw a trace last; `span` is already formatted, like "29 s". */
+  lasted: (span: string) => string;
+  /** A trace that lasts until someone deletes it. */
+  stays: string;
   refused: Record<RefusedReason, string>;
   errors: Record<ErrorCode, string>;
   paths: Record<ConnectionPath, string>;
@@ -99,30 +101,21 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const traces: TraceTexts = {
   title: "Traces",
-  button: (left) => (left === 0 ? "Traces" : `Traces, ${left} left`),
-  note: 'Times are when this page saw each event. A "gone at" time is when this page saw the trace end. Every other end is how our server and relay are built to behave, which this page can\'t check.',
+  button: (left) => (left === 0 ? "Traces" : `Traces, ${left} still kept`),
+  note: 'Times are when this page saw each event. "Lasted" is how long this page saw a trace last. Every other duration is how our server, our relay and the browsers are built to behave, which this page can\'t check.',
   empty: "Nothing yet.",
-  parts: {
-    server: () => "Our server",
-    serverLog: () => "Our server's log",
-    relay: () => "Our relay",
-    browser: () => "This browser",
-    peer: (role) => (role === "sender" ? "The recipient's browser" : "The sender's browser"),
-    connection: () => "Connection",
+  who: {
+    server: "Server",
+    relay: "Relay",
+    sender: "Sender",
+    recipient: "Recipient",
+    connection: "Connection",
   },
-  labels: {
-    ipAddress: "IP address",
-    linkId: "Link ID",
-    timing: "Timing",
-    relayCredentials: "Relay credentials",
-    encryptedMessages: "Encrypted messages",
-    encryptedData: "Encrypted data",
-    token: "Token",
-    logLine: "Log line",
-    linkAndKey: "Link and key",
-    file: "File",
-    secret: "Secret",
-    route: "Route",
+  where: {
+    memory: "Memory",
+    log: "Log",
+    addressBar: "Address bar",
+    disk: "Disk",
   },
   what: {
     connected: () =>
@@ -204,25 +197,22 @@ const traces: TraceTexts = {
       secret
         ? "The secret, checked against what this page sent."
         : "The file, checked against what this page sent.",
-    path: ({ path }) =>
-      `${traces.paths[path].charAt(0).toUpperCase()}${traces.paths[path].slice(1)}.`,
+    path: ({ path }) => `Route: ${traces.paths[path]}.`,
   },
   stated: {
-    connection: () => "until this page's connection to our server closes",
-    dropped: () =>
-      "the connection dropped, so our server lets go within a minute, after keeping a transfer's place for up to 30 seconds",
-    log30d: () => "kept in our server's log for 30 days",
-    notKept: () => "not kept",
-    tab: (part) => (part === "peer" ? "while their tab is open" : "while this tab is open"),
-    credential5m: () => "usable for 5 minutes to start a relayed connection",
-    relay7d: () =>
-      "not logged; a temporary log, only to fix a fault or stop abuse, is kept for at most 7 days",
-    history: () => "until the browser's history is cleared",
-    peerConnection: () => "until the connection between the two browsers closes",
-    attempt: () => "until this transfer attempt ends",
+    connection: "while connected",
+    dropped: "about 1 min",
+    log30d: "30 days",
+    notKept: "not kept",
+    tab: "until tab closes",
+    credential5m: "5 min",
+    relay7d: "up to 7 days",
+    history: "until history is cleared",
+    peerConnection: "while connected",
+    attempt: "until transfer ends",
   },
-  seen: (clock) => `gone at ${clock}`,
-  stays: (role) => (role === "sender" ? "until they delete it" : "until you delete it"),
+  lasted: (span) => `lasted ${span}`,
+  stays: "until deleted",
   refused: {
     used: "the link was already used",
     busy: "the sender was busy with another recipient",
