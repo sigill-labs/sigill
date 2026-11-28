@@ -178,8 +178,8 @@ export function App({
   useEffect(() => {
     document
       .querySelector('link[rel="icon"][type="image/svg+xml"]')
-      ?.setAttribute("href", faviconHref(icon));
-  }, [icon]);
+      ?.setAttribute("href", faviconHref(icon, theme));
+  }, [icon, theme]);
   // Holds the key, so it stays out of the DOM: the link back shows only the path.
   const receiveUrl = useRef("");
   const away =
