@@ -24,6 +24,7 @@ import {
   type ServerMessage,
 } from "@fidant/protocol";
 import { signalingUrl } from "./signaling-list.ts";
+import type { SignalMessage } from "./trace-log.ts";
 
 export type SignalingClose = {
   /** WebSocket close code (1006 when the connection dropped). */
@@ -65,11 +66,17 @@ export type SignalingOptions = {
   url?: string;
   /** Called with the data length of each relay message sent or received. */
   onRelay?: (bytes: number) => void;
+  /**
+   * Called with each message sent, and each valid message received before the subscribers see
+   * it. For in-page observers such as the trace log only: the messages carry link IDs and tokens.
+   */
+  onMessage?: (...args: SignalMessage) => void;
 };
 
 export function connectSignaling({
   url = defaultSignalingUrl(),
   onRelay,
+  onMessage,
 }: SignalingOptions = {}): SignalingClient {
   const messageListeners = new Set<(message: ServerMessage) => void>();
   const openListeners = new Set<() => void>();
@@ -140,6 +147,7 @@ export function connectSignaling({
       if (message.t === "relay") {
         onRelay?.(message.data.length);
       }
+      onMessage?.("received", message);
       for (const listener of [...messageListeners]) {
         listener(message);
       }
@@ -163,6 +171,7 @@ export function connectSignaling({
       if (message.t === "relay") {
         onRelay?.(message.data.length);
       }
+      onMessage?.("sent", message);
       return true;
     },
     subscribe(listener) {

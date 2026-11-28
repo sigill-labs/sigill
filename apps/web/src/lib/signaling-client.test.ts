@@ -87,6 +87,26 @@ test("does not count other messages, invalid frames or sends on a closed socket"
   assert.equal(warn.mock.callCount(), 1);
 });
 
+test("tells onMessage each message sent and received, before subscribers, and no failed send or invalid frame", (t) => {
+  t.mock.method(console, "warn", () => {});
+  const seen: unknown[] = [];
+  const client = connectSignaling({
+    url: "wss://x/signal",
+    onMessage: (...args) => seen.push(args),
+  });
+  client.subscribe((message) => seen.push(["subscriber", message.t]));
+  client.send({ t: "host", links: [LINK], turn: true });
+  fake.readyState = 1;
+  client.send({ t: "join", link: LINK, attempt: LINK });
+  receive({ t: "relay", link: LINK, data: "abc" });
+  fake.dispatchEvent(Object.assign(new Event("message"), { data: "not json" }));
+  assert.deepEqual(seen, [
+    ["sent", { t: "join", link: LINK, attempt: LINK }],
+    ["received", { t: "relay", link: LINK, data: "abc" }],
+    ["subscriber", "relay"],
+  ]);
+});
+
 test("retryDelay waits a random time up to 1 s × 2^failures, capped at 30 s", () => {
   assert.equal(
     retryDelay(0, () => 0),
