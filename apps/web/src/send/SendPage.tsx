@@ -953,6 +953,9 @@ export function SendPage({
   const unfinished = sender.recipients.some((r) => r.status !== "delivered");
   const delivered = sender.recipients.filter((r) => r.status === "delivered").length;
   const allDone = hasRecipients && !unfinished;
+  const someDelivered = delivered > 0;
+  // Some link has left "waiting": a recipient opened it, or it moved on from there.
+  const started = sender.recipients.some((r) => r.status !== "waiting");
   // Every link counts the same: a delivered one as 1, one on its way as the part that has gone.
   const progress =
     sender.recipients.reduce(
@@ -1211,17 +1214,13 @@ export function SendPage({
         {(file || text) && (
           // One line that is always there: the file's status, then the lock's hint. Both share a
           // grid cell and the hidden one keeps its space, so neither moves the page (see SwapLabel).
-          <p class={`mt-2 mb-0 grid ${hint}`}>
+          // Once a link has delivered, Send another file in the bottom bar is the way out instead.
+          // Its first line sits in the gap above step 2, so the gap is as tall as step 2's above step 3.
+          <p class={`mt-2 -mb-[calc(0.5rem+1lh)] grid ${hint}`}>
             <span
-              class={`col-start-1 row-start-1 ${hasRecipients && !fileStatus ? "" : "invisible"}`}
+              class={`col-start-1 row-start-1 ${hasRecipients && !fileStatus && !someDelivered ? "" : "invisible"}`}
             >
-              {
-                (text ? t.secret : t.send)[
-                  sender.recipients.some((r) => r.status === "delivered")
-                    ? "lockedDelivered"
-                    : "locked"
-                ]
-              }
+              {(text ? t.secret : t.send).locked}
             </span>
             {fileStatus === "preparing" && (
               <span class="col-start-1 row-start-1" role="status">
@@ -1240,7 +1239,7 @@ export function SendPage({
       {continued && (
         <section
           id={id("recipients")}
-          class={`mt-10 scroll-mt-16 border-t border-border pt-8 ${hasRecipients ? "" : lastStep}`}
+          class={`mt-12 scroll-mt-16 border-t border-border pt-8 ${hasRecipients ? "" : lastStep}`}
           aria-labelledby={id("recipients-heading")}
         >
           <p class={stepLabel}>{t.send.step(2)}</p>
@@ -1407,7 +1406,13 @@ export function SendPage({
               </div>
             </div>
           </details>
-          <Button type="button" className="mt-6" disabled={!hasRecipients} onClick={goToLinks}>
+          {/* Leads to the links until the first one moves: from then on step 3 has the sender's attention. */}
+          <Button
+            type="button"
+            className="mt-6"
+            disabled={!hasRecipients || started}
+            onClick={goToLinks}
+          >
             {t.send.continue}
           </Button>
         </section>
@@ -1423,6 +1428,7 @@ export function SendPage({
           <h2 id={id("links-heading")} class="m-0 text-[1.75rem] font-bold">
             {t.send.linksHeading}
           </h2>
+          <p class={lede}>{t.send.linksLede}</p>
           <RecipientList
             recipients={sender.recipients}
             fileSize={file?.size ?? 0}

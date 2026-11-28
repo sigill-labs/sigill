@@ -330,6 +330,8 @@ export const en = {
     peopleLede:
       "Add each person you want to send to. Each one gets their own link, which works once.",
     linksHeading: "Share the links",
+    linksLede:
+      "Send each person their own link, for example in a chat or an email. Keep this page open until everyone has received it.",
     change: "Change",
     connectionOptions: "Connection options",
     addEmail: "Add and email link",
@@ -377,7 +379,6 @@ export const en = {
     readFailed: "Couldn't read the file. Choose it again.",
     hashPending: "Not ready yet",
     locked: "Remove everyone to change your name or file.",
-    lockedDelivered: "Choose Send another file at the bottom to change your name or file.",
     sendAnother: "Send another file",
     recipientLabel: "Who is it for?",
     recipientPlaceholder: "Their name",
@@ -662,7 +663,6 @@ export const en = {
     },
     first: "Write or paste the secret first.",
     locked: "Remove everyone to change your name or secret.",
-    lockedDelivered: "Choose Send another secret at the bottom to change your name or secret.",
     sendAnother: "Send another secret",
     allDone: "Every link has delivered the secret",
     summary: (done: number, total: number) => `${done} of ${total} links have delivered the secret`,

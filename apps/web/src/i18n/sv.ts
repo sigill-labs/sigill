@@ -310,6 +310,8 @@ export const sv: Messages = {
     peopleLede:
       "Lägg till varje person du vill skicka till. Var och en får en egen länk, som fungerar en gång.",
     linksHeading: "Dela länkarna",
+    linksLede:
+      "Skicka varje person deras egen länk, till exempel i en chatt eller ett mejl. Håll den här sidan öppen tills alla har tagit emot den.",
     change: "Byt",
     connectionOptions: "Anslutningsalternativ",
     addEmail: "Lägg till och mejla länk",
@@ -357,7 +359,6 @@ export const sv: Messages = {
     readFailed: "Det gick inte att läsa filen. Välj den igen.",
     hashPending: "Inte klar än",
     locked: "Ta bort alla mottagare för att ändra ditt namn eller din fil.",
-    lockedDelivered: "Välj Skicka en ny fil längst ner för att ändra ditt namn eller din fil.",
     sendAnother: "Skicka en ny fil",
     recipientLabel: "Vem ska få den?",
     recipientPlaceholder: "Mottagarens namn",
@@ -641,8 +642,6 @@ export const sv: Messages = {
     },
     first: "Skriv eller klistra in hemligheten först.",
     locked: "Ta bort alla mottagare för att ändra ditt namn eller din hemlighet.",
-    lockedDelivered:
-      "Välj Skicka en ny hemlighet längst ner för att ändra ditt namn eller din hemlighet.",
     sendAnother: "Skicka en ny hemlighet",
     allDone: "Alla länkar har levererat hemligheten",
     summary: (done: number, total: number) =>

@@ -304,10 +304,17 @@ test("Send another file clears the list and the file, keeps the name, and a new 
   const again = sender.getByRole("button", { name: "Send another file" });
   // Only once nothing is on its way.
   await expect(again).toHaveCount(0);
+  // Step 2's Continue leads to the links until one of them moves.
+  const toLinks = sender
+    .getByRole("region", { name: "Add recipients" })
+    .getByRole("button", { name: "Continue" });
+  await expect(toLinks).toBeEnabled();
   const recipient = await demo.open("recipient");
   await recipient.goto(firstLink);
+  await expect(toLinks).toBeDisabled();
   await download(recipient, first);
   await expect(delivered(sender, anna)).toBeAttached();
+  await expect(toLinks).toBeDisabled();
 
   await again.click();
   await expect(sender.getByLabel("Choose a file")).toBeFocused();
