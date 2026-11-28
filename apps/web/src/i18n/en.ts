@@ -1479,6 +1479,10 @@ export const en = {
               "",
               "Once a recipient's connection opens: a random token from our server for that link, in this tab's memory only, so the page can take its place back if its connection to our server drops. A new one replaces it each time the page takes its place back. It stays until the page's next connection to our server uses it, the link connects again or you close the tab.",
             ],
+            [
+              "",
+              "A log of this transfer's traces, under Technical details: when this page saw each event, which part holds what, the first 6 characters of each link ID and the route. Never a file name, key or IP address. Only in this tab's memory and never sent, until you leave the page or close the tab.",
+            ],
           ],
         },
         channel: {
@@ -1656,6 +1660,10 @@ export const en = {
             [
               "",
               "Once the connection opens: a random token from our server, in the page's memory only, so the page can take its place back if its connection to our server drops. A new one replaces it each time the page takes its place back; it is gone when the transfer ends or the tab closes.",
+            ],
+            [
+              "",
+              "A log of this transfer's traces, under What our server has right now: when their page saw each event, which part holds what, the first 6 characters of the link ID and the route. Never a file name, key or IP address. Only in the page's memory and never sent, until they leave the page or close the tab.",
             ],
             [
               "",

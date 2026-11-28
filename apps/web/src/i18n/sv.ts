@@ -1406,6 +1406,10 @@ export const sv: Messages = {
               "",
               "När en mottagares anslutning öppnas: ett slumpmässigt värde från vår server för den länken, bara i den här flikens minne, så att sidan kan ta tillbaka sin plats om dess anslutning till vår server bryts. Ett nytt ersätter det varje gång sidan tar tillbaka sin plats. Det finns kvar tills sidans nästa anslutning till vår server använder det, länken ansluter igen eller du stänger fliken.",
             ],
+            [
+              "",
+              "En logg över spåren efter den här överföringen, under Tekniska detaljer: när den här sidan såg varje händelse, vilken del som har vad, de första 6 tecknen i varje länk-ID och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i den här flikens minne och skickas aldrig, tills du lämnar sidan eller stänger fliken.",
+            ],
           ],
         },
         channel: {
@@ -1596,6 +1600,10 @@ export const sv: Messages = {
             [
               "",
               "När anslutningen öppnas: ett slumpmässigt värde från vår server, bara i sidans minne, så att sidan kan ta tillbaka sin plats om dess anslutning till vår server bryts. Ett nytt ersätter det varje gång sidan tar tillbaka sin plats, och det försvinner när överföringen slutar eller fliken stängs.",
+            ],
+            [
+              "",
+              "En logg över spåren efter den här överföringen, under Vad vår server har just nu: när deras sida såg varje händelse, vilken del som har vad, de första 6 tecknen i länk-ID:t och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i sidans minne och skickas aldrig, tills de lämnar sidan eller stänger fliken.",
             ],
             [
               "",
