@@ -12,7 +12,7 @@ test("an open transfer outranks a finished one, and a finished one outranks none
 });
 
 test("every icon is inline, so no change of status asks the server for anything", () => {
-  const icons = (["idle", "active", "done", "insecure"] as const).map(faviconHref);
+  const icons = (["idle", "active", "done", "insecure"] as const).map((s) => faviconHref(s));
   for (const href of icons) {
     assert.match(href, /^data:image\/svg\+xml,/);
     assert.ok(svg(href).endsWith("</svg>"));
@@ -28,6 +28,24 @@ test("the idle icon is the drawing in public/favicon.svg, in its colours", () =>
   }
   for (const colour of ["#111", "#f5f5f5", "#fff"]) {
     assert.ok(file.includes(colour) && icon.includes(colour), colour);
+  }
+});
+
+test("the logo follows the site's theme: black tile in light, light tile in dark", () => {
+  const light = svg(faviconHref("idle", "light"));
+  assert.ok(light.includes("rect{fill:#111}g{stroke:#fff}"));
+  assert.ok(!light.includes("#f5f5f5") && !light.includes("prefers-color-scheme"));
+  const dark = svg(faviconHref("idle", "dark"));
+  assert.ok(dark.includes("rect{fill:#f5f5f5}g{stroke:#111}"));
+  assert.ok(!dark.includes("#fff}") && !dark.includes("prefers-color-scheme"));
+  const system = svg(faviconHref("idle", "system"));
+  assert.ok(system.includes("@media (prefers-color-scheme:dark){rect{fill:#f5f5f5}"));
+  assert.equal(faviconHref("idle"), faviconHref("idle", "system"));
+});
+
+test("a status icon looks the same in either theme", () => {
+  for (const status of ["active", "done", "insecure"] as const) {
+    assert.equal(faviconHref(status, "light"), faviconHref(status, "dark"));
   }
 });
 

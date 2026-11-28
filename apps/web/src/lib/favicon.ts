@@ -2,11 +2,17 @@
 // the header, and a green check once it is done. The screen that asks for a secure connection
 // shows a red stop sign, since nothing can be sent or received there.
 //
+// The logo flips with the theme (docs/decisions/0035-logo-flips-with-the-theme.md): a black tile
+// with a white mark in the light theme, a light tile with a black mark in the dark one. It follows
+// the theme the site's switch chose, like the header's mark, and the system's only when the switch
+// is on "system".
+//
 // Every icon is a data: URL, the normal one too, so a change of status asks the server for
 // nothing and the server can't tell from a request that a transfer started, finished or stopped.
 
 export type TransferStatus = "idle" | "active" | "done";
 export type TabIcon = TransferStatus | "insecure";
+export type IconTheme = "system" | "light" | "dark";
 
 /** One status for the whole tab: an open transfer outranks a finished one. */
 export function overallStatus(statuses: readonly TransferStatus[]): TransferStatus {
@@ -22,11 +28,15 @@ const colours = (tile: string, ink: string) =>
 const tile = (style: string, glyph: string) =>
   `<style>${style}</style><rect width="32" height="32" rx="7"/><g fill="none" stroke-linecap="round">${glyph}</g>`;
 
-const ICON: Record<TabIcon, string> = {
-  idle: tile(
-    `${colours("#111", "#fff")}@media (prefers-color-scheme:dark){${colours("#f5f5f5", "#111")}}`,
-    MARK,
-  ),
+const LIGHT = colours("#111", "#fff");
+const DARK = colours("#f5f5f5", "#111");
+const LOGO: Record<IconTheme, string> = {
+  system: tile(`${LIGHT}@media (prefers-color-scheme:dark){${DARK}}`, MARK),
+  light: tile(LIGHT, MARK),
+  dark: tile(DARK, MARK),
+};
+
+const ICON: Record<Exclude<TabIcon, "idle">, string> = {
   // The header's live dot (emerald-500) with its ring held still: a browser draws only the first
   // frame of an SVG icon. No tile, so it reads on a light or a dark tab bar.
   active:
@@ -40,7 +50,8 @@ const ICON: Record<TabIcon, string> = {
     '<rect x="8" y="13.5" width="16" height="5" rx="1" fill="#fff"/>',
 };
 
-export function faviconHref(status: TabIcon): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${ICON[status]}</svg>`;
+export function faviconHref(status: TabIcon, theme: IconTheme = "system"): string {
+  const body = status === "idle" ? LOGO[theme] : ICON[status];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${body}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

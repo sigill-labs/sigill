@@ -303,7 +303,7 @@ export function Header({
           aria-current={current === "landing" ? "page" : undefined}
           class="flex items-center gap-2 rounded-md text-[1.05rem] font-bold tracking-tight no-underline"
         >
-          {/* The mark: a shepherd's crook, upright and bent over what it looks after. Same drawing as public/favicon.svg. */}
+          {/* The mark: a shepherd's crook, upright and bent over what it looks after. Same drawing as public/favicon.svg, and like it flips with the theme (docs/decisions/0035-logo-flips-with-the-theme.md). */}
           <svg
             class="size-8 flex-none rounded-md bg-foreground text-background"
             viewBox="0 0 32 32"
