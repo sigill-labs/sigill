@@ -641,7 +641,7 @@ export function TraceLog({ log }: { log: Log }) {
 }
 
 /** The receive page's server facts: a section with a disclosure. */
-export function ServerPanel(props: ServerPanelProps) {
+export function ServerPanel({ traces, ...props }: ServerPanelProps & { traces: Log }) {
   const { t, lang } = useI18n();
   const headingId = useId();
   return (
@@ -651,6 +651,7 @@ export function ServerPanel(props: ServerPanelProps) {
           {t.server.heading}
         </summary>
         <Facts rows={serverRows(t, lang, props)} />
+        <TraceLog log={traces} />
       </details>
     </section>
   );

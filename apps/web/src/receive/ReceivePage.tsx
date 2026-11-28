@@ -143,6 +143,7 @@ import {
   type Sink,
 } from "../lib/sink.ts";
 import { decodeText, isTextOffer } from "../lib/text-secret.ts";
+import { createTraceLog, fromMessage, recordAt, type TraceEvent } from "../lib/trace-log.ts";
 import {
   CheckNumber,
   Direct,
@@ -304,6 +305,9 @@ export function ReceivePage({
   }, [downloading]);
   const [picking, setPicking] = useState(false);
   const [relayed, countRelay] = useReducer(addRelay, NO_RELAYS);
+  // Only in page memory, and on the page rather than the attempt: Try again keeps it, with a marker line.
+  const [traces, addTrace] = useReducer(recordAt, "recipient", createTraceLog);
+  const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
   const [reachedServer, setReachedServer] = useState(false);
   const [tie, setTie] = useState<Tie>("closed");
   const [viaRelay, setViaRelay] = useState(false);
@@ -323,13 +327,19 @@ export function ReceivePage({
     setTie("closed");
     attempt.abort.abort(new Error("attempt ended"));
     attempt.signaling.close();
+    const closePeer = () => {
+      if (attempt.peer) {
+        attempt.peer.close();
+        trace({ t: "peer-closed", ...(link && { link: link.linkId }) });
+      }
+    };
     if (linger) {
-      attempt.timers.push(setTimeout(() => attempt.peer?.close(), LINGER_MS));
+      attempt.timers.push(setTimeout(closePeer, LINGER_MS));
     } else {
       for (const timer of attempt.timers) {
         clearTimeout(timer);
       }
-      attempt.peer?.close();
+      closePeer();
     }
   };
 
@@ -345,7 +355,15 @@ export function ReceivePage({
 
     // A fresh ID per attempt, so the sender's refusal can name the attempt it refuses.
     const attemptId = encodeBase64url(crypto.getRandomValues(new Uint8Array(LINK_ID_BYTES)));
-    const signaling = connectSignaling({ onRelay: countRelay });
+    const signaling = connectSignaling({
+      onRelay: countRelay,
+      onMessage: (...args) => {
+        const event = fromMessage(...args);
+        if (event) {
+          trace(event);
+        }
+      },
+    });
     const attempt: Attempt = {
       abort: new AbortController(),
       signaling,
@@ -407,6 +425,7 @@ export function ReceivePage({
         return;
       }
       setPath(resolved);
+      trace({ t: "path", path: resolved, link: linkId });
       if (resolved === "relay") {
         setViaRelay(true);
       }
@@ -467,6 +486,8 @@ export function ReceivePage({
       () => finish({ s: "failed", problem: "server" }),
     );
     signaling.onOpen(() => {
+      // Before the `resume` or `join` below, which the log reads against this socket.
+      trace({ t: "socket-open" });
       setReachedServer(true);
       if (!current()) {
         return;
@@ -518,7 +539,8 @@ export function ReceivePage({
           break;
       }
     };
-    signaling.onClose(({ byClient }) => {
+    signaling.onClose(({ code, byClient }) => {
+      trace({ t: "socket-closed", code });
       if (byClient || !current()) {
         return;
       }
@@ -628,6 +650,7 @@ export function ReceivePage({
               onOpen(channel, info);
             },
             onPath: showPath,
+            onRelayAdded: () => trace({ t: "relay-added", link: linkId }),
             // The same `join` again, token included (decision 0031). After `host-gone` it would
             // be a new pairing with the sender's new socket, so then nothing is sent.
             onStalled: () => {
@@ -645,12 +668,14 @@ export function ReceivePage({
               }
             },
             onConnected: () => restart.connected(),
-            onClose: (reason) =>
-              reason === "unsupported"
+            onClose: (reason) => {
+              trace({ t: "peer-closed", link: linkId });
+              return reason === "unsupported"
                 ? finish({ s: "failed", problem: "browser" })
                 : reason === "outdated" || reason === "peer-outdated"
                   ? outdated(reason)
-                  : lost(),
+                  : lost();
+            },
           });
           break;
         }
@@ -866,13 +891,19 @@ export function ReceivePage({
     if (preview) {
       return;
     }
+    if (link) {
+      trace({ t: "address-bar" });
+    }
     start();
     // Once the page is really going, close the peer so the sender hears it now, not when ICE
     // consent runs out about 15 s later. Unless the page may come back from the back-forward
     // cache, also close signaling with 1000, so the server frees the attempt at once instead of
     // holding it for a takeover (0033).
     const onPageHide = (event: PageTransitionEvent) => {
-      attemptRef.current?.peer?.close();
+      if (attemptRef.current?.peer) {
+        attemptRef.current.peer.close();
+        trace({ t: "peer-closed", ...(link && { link: link.linkId }) });
+      }
       if (!event.persisted) {
         attemptRef.current?.signaling.close();
       }
@@ -917,6 +948,16 @@ export function ReceivePage({
     }
     focusHeading();
   }, [view.s]);
+  useEffect(() => {
+    if (view.s === "done" && !preview) {
+      trace({ t: "received", secret: view.offer.text });
+    }
+  }, [view.s]);
+  // Try again and Show again: the user starts a new attempt, which the log marks.
+  const startAgain = () => {
+    trace({ t: "new-transfer" });
+    start();
+  };
 
   const onAccept = () => {
     const attempt = attemptRef.current;
@@ -1033,6 +1074,7 @@ export function ReceivePage({
       viaRelay={viaRelay}
       emailed={emailed}
       kind={kind}
+      traces={traces}
     />
   ) : null;
 
@@ -1241,7 +1283,7 @@ export function ReceivePage({
         <>
           <h1>{view.text ? t.secret.declinedTitle : t.receive.declinedTitle}</h1>
           <p>{t.receive.declinedBody}</p>
-          <Button type="button" variant="outline" onClick={() => start()}>
+          <Button type="button" variant="outline" onClick={startAgain}>
             {view.text ? t.secret.showAgain : t.receive.showAgain}
           </Button>
         </>
@@ -1254,7 +1296,7 @@ export function ReceivePage({
           <Problem {...problem} />
           {/* A retry in the same browser fails the same way, and on a link with the safety number on it would use up one of the sender's attempts. */}
           {view.problem !== "browser" && (
-            <Button type="button" onClick={() => start()}>
+            <Button type="button" onClick={startAgain}>
               {t.receive.tryAgain}
             </Button>
           )}
