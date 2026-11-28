@@ -5,6 +5,8 @@
 // devices. So callers pass only fixed text and counts, never a file name, a
 // recipient's name, a link or a key.
 
+import { notifyIcon } from "./notify-icon.ts";
+
 const api = () => (typeof Notification === "undefined" ? undefined : Notification);
 
 /** Where the page stands with notifications; "default" means asking is worth it. */
@@ -48,9 +50,9 @@ export function notify(title: string, body: string): void {
     return;
   }
   try {
-    // Our own logo, from our own origin. On macOS Chrome keeps its icon on the left
-    // and shows this one beside the text; elsewhere it takes the browser icon's place.
-    const notification = new N(title, { body, icon: "/apple-touch-icon.png" });
+    // Inline, so a delivery asks the server for nothing. On macOS Chrome keeps its own icon
+    // on the left and shows this one beside the text; elsewhere it takes the browser's place.
+    const notification = new N(title, { body, icon: notifyIcon });
     notification.onclick = () => {
       window.focus();
       notification.close();
