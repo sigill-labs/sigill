@@ -84,6 +84,12 @@ function hostPlain(page: Page, link: string, attempt: string): Promise<string> {
 test.describe("emailed links", () => {
   test.skip(!process.env.FIDANT_E2E_MAILPIT, "needs Mailpit");
 
+  // The server sends one client at most 5 codes an hour, and earlier specs ask for codes too, so
+  // these tests start from a fresh server, which forgets the codes it sent.
+  test.beforeAll(async () => {
+    await restartServer();
+  });
+
   test("a recipient enters the emailed code and gets the file", async ({
     demo,
     observed,
