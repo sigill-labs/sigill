@@ -693,7 +693,9 @@ export function TraceDrawer({
     <Sheet
       open={open}
       onOpenChange={(next) => (wide ? setPinned(next) : setDrawer(next))}
-      modal={!wide}
+      // Never modal: a modal Radix dialog injects a <style> to lock scrolling, which the CSP
+      // blocks (docs/decisions/0005-shadcn-ui-on-preact.md). styles.css locks it instead.
+      modal={false}
     >
       {/* 40 × 40, no taller than the bar's two lines of text; from lg the icon and the word, which
           starts the button's name. The badge counts the traces still kept; its number is in the

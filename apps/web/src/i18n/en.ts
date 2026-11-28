@@ -1375,7 +1375,7 @@ export const en = {
             ],
             [
               "",
-              "A log of this transfer's traces, under Traces: when this page saw each event, which part holds what, the first 6 characters of each link ID and the route. Never a file name, key or IP address. Only in this tab's memory and never sent, until you leave the page or close the tab.",
+              "A log of this transfer's traces, under Traces: when this page saw each event, which part holds what, the first 6 characters of each link ID and the route. Never a file name, key or IP address. Only in this tab's memory and never sent, until you leave the site, close the tab or reload it.",
             ],
           ],
         },
@@ -1557,7 +1557,7 @@ export const en = {
             ],
             [
               "",
-              "A log of this transfer's traces, under Traces: when their page saw each event, which part holds what, the first 6 characters of the link ID and the route. Never a file name, key or IP address. Only in the page's memory and never sent, until they leave the page or close the tab.",
+              "A log of this transfer's traces, under Traces: when their page saw each event, which part holds what, the first 6 characters of the link ID and the route. Never a file name, key or IP address. Only in the page's memory and never sent, until they leave the site, close the tab or reload it.",
             ],
             [
               "",

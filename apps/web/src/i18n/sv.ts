@@ -1325,7 +1325,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "En logg över spåren efter den här överföringen, under Spår: när den här sidan såg varje händelse, vilken del som har vad, de första 6 tecknen i varje länk-ID och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i den här flikens minne och skickas aldrig, tills du lämnar sidan eller stänger fliken.",
+              "En logg över spåren efter den här överföringen, under Spår: när den här sidan såg varje händelse, vilken del som har vad, de första 6 tecknen i varje länk-ID och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i den här flikens minne och skickas aldrig, tills du lämnar webbplatsen, stänger fliken eller laddar om den.",
             ],
           ],
         },
@@ -1520,7 +1520,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "En logg över spåren efter den här överföringen, under Spår: när deras sida såg varje händelse, vilken del som har vad, de första 6 tecknen i länk-ID:t och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i sidans minne och skickas aldrig, tills de lämnar sidan eller stänger fliken.",
+              "En logg över spåren efter den här överföringen, under Spår: när deras sida såg varje händelse, vilken del som har vad, de första 6 tecknen i länk-ID:t och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i sidans minne och skickas aldrig, tills de lämnar webbplatsen, stänger fliken eller laddar om den.",
             ],
             [
               "",
