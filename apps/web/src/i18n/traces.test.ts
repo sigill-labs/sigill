@@ -8,6 +8,7 @@ import type { Lang } from "./language.ts";
 const lines: { [K in What["kind"]]: Extract<What, { kind: K }>[] } = {
   connected: [{ kind: "connected" }],
   holdsLink: [{ kind: "holdsLink", link: "abc123" }],
+  holdsLinkMaybe: [{ kind: "holdsLinkMaybe", link: "abc123" }],
   alreadyHosted: [{ kind: "alreadyHosted" }],
   paired: [{ kind: "paired", link: "abc123" }],
   rejoined: [{ kind: "rejoined", link: "abc123" }],
@@ -18,6 +19,7 @@ const lines: { [K in What["kind"]]: Extract<What, { kind: K }>[] } = {
   ],
   serverToken: [{ kind: "serverToken", link: "abc123" }],
   logHost: [
+    { kind: "logHost", links: undefined },
     { kind: "logHost", links: 0 },
     { kind: "logHost", links: 1 },
     { kind: "logHost", links: 3 },
@@ -30,10 +32,15 @@ const lines: { [K in What["kind"]]: Extract<What, { kind: K }>[] } = {
   logRefused: (["used", "busy", "unknown", "drop", "starting"] as const).map((reason) => ({
     kind: "logRefused" as const,
     reason,
+    link: "abc123",
   })),
   logLeft: [{ kind: "logLeft", link: "abc123" }],
-  logHostGone: [{ kind: "logHostGone" }],
+  logHostGone: [
+    { kind: "logHostGone", link: "abc123", later: false },
+    { kind: "logHostGone", link: "abc123", later: true },
+  ],
   logHostClosed: [
+    { kind: "logHostClosed", links: undefined },
     { kind: "logHostClosed", links: 1 },
     { kind: "logHostClosed", links: 2 },
   ],

@@ -82,7 +82,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const traces: TraceTexts = {
   heading: "Spåren efter den här överföringen",
-  note: "Tiderna är när den här sidan såg varje händelse.",
+  note: 'Tiderna är när den här sidan såg varje händelse. En tid efter "borta" är när den här sidan såg att spåret försvann. Alla andra slut är så som vår server och vårt relä är byggda att bete sig, vilket den här sidan inte kan kontrollera.',
   empty: "Inget ännu.",
   parts: {
     server: () => "Vår server",
@@ -96,8 +96,10 @@ const traces: TraceTexts = {
     connected: () =>
       "Den här sidan anslöt. Servern ser sidans IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",
     holdsLink: ({ link }) => `Länk-ID ${id(link)}, aldrig den del av länken som låser upp den.`,
+    holdsLinkMaybe: ({ link }) =>
+      `Länk-ID ${id(link)}, aldrig den del av länken som låser upp den, om inte en annan anslutning har den. Vår server säger inte vilken länk den hoppade över.`,
     alreadyHosted: () =>
-      "Tog inte emot länkarna, eftersom en annan anslutning fortfarande har en av dem. Den här sidan frågar igen om en stund.",
+      "Tog emot de andra länkarna och hoppade över en som en annan anslutning fortfarande har. Den här sidan frågar igen om en stund.",
     paired: ({ link }, { role }) =>
       role === "sender"
         ? `Kopplade ihop en mottagares sida med länk-ID ${id(link)}. Servern ser båda sidornas IP-adresser.`
@@ -113,26 +115,35 @@ const traces: TraceTexts = {
     serverToken: ({ link }) =>
       `Ett slumpmässigt värde för den här sidans plats i överföringen på länk-ID ${id(link)}, som servern inte loggar.`,
     logHost: ({ links }) =>
-      links === 0
-        ? "En rad om att den här sidan inte har några länkar."
-        : `En rad om att den här sidan har ${plural(links, "länk", "länkar")}, utan deras ID.`,
+      links === undefined
+        ? "En rad, om länkarna som den här sidan har ändrades, med hur många den har, utan de som en annan anslutning har och utan deras ID."
+        : links === 0
+          ? "En rad om att den här sidan inte har några länkar."
+          : `En rad om att den här sidan har ${plural(links, "länk", "länkar")}, utan deras ID.`,
     logJoined: ({ link }, { role }) =>
       role === "sender"
         ? `En rad om att en mottagares sida anslöt till länk-ID ${id(link)}.`
         : `En rad om att den här sidan anslöt till länk-ID ${id(link)}.`,
     logRelay: ({ link, count, bytes }, { size }) =>
       `${plural(count, "rad", "rader")} om uppkopplingsmeddelanden för länk-ID ${id(link)}, med deras storlek (${size(bytes)} totalt).`,
-    logRefused: ({ reason }, { role }) =>
+    logRefused: ({ link, reason }, { role }) =>
       role === "sender"
-        ? `En rad om att den här sidan nekade en mottagare, med orsaken: ${traces.refused[reason]}.`
-        : `En rad om att den här sidan nekades, med orsaken: ${traces.refused[reason]}.`,
+        ? `En rad om att den här sidan nekade en mottagare på länk-ID ${id(link)}, med orsaken: ${traces.refused[reason]}.`
+        : `En rad om att den här sidan nekades på länk-ID ${id(link)}, med orsaken: ${traces.refused[reason]}.`,
     logLeft: ({ link }, { role }) =>
       role === "sender"
         ? `En rad om att mottagarens sida lämnade länk-ID ${id(link)}.`
         : `En rad om att den här sidan lämnade länk-ID ${id(link)}.`,
-    logHostGone: () => "En rad om att avsändarens sida var borta.",
+    logHostGone: ({ link, later }, { role }) =>
+      role === "sender"
+        ? later
+          ? `En rad om att den här sidan var borta på länk-ID ${id(link)}, om mottagarens sida fortfarande är kvar. Vår server skriver den när den släpper den här sidans länkar.`
+          : `En rad om att den här sidan var borta på länk-ID ${id(link)}, eftersom mottagarens sida fortfarande var kvar.`
+        : `En rad om att avsändarens sida var borta på länk-ID ${id(link)}.`,
     logHostClosed: ({ links }) =>
-      `En rad om att den här sidans anslutning stängdes medan den hade ${plural(links, "länk", "länkar")}, utan deras ID.`,
+      links === undefined
+        ? "En rad om att den här sidans anslutning stängdes, med hur många länkar den hade, om den hade några, utan deras ID."
+        : `En rad om att den här sidans anslutning stängdes medan den hade ${plural(links, "länk", "länkar")}, utan deras ID.`,
     logPath: ({ path }) => `En rad om hur anslutningen gick: ${traces.paths[path]}. Inget länk-ID.`,
     logResume: ({ link, refused }) =>
       refused

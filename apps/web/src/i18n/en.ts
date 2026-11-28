@@ -127,7 +127,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const traces: TraceTexts = {
   heading: "This transfer's traces",
-  note: "Times are when this page saw each event.",
+  note: 'Times are when this page saw each event. A "gone at" time is when this page saw the trace end. Every other end is how our server and relay are built to behave, which this page can\'t check.',
   empty: "Nothing yet.",
   parts: {
     server: () => "Our server",
@@ -141,8 +141,10 @@ const traces: TraceTexts = {
     connected: () =>
       "This page connected. It sees this page's IP address and the usual browser details any website gets.",
     holdsLink: ({ link }) => `Link ID ${id(link)}, never the part of the link that unlocks it.`,
+    holdsLinkMaybe: ({ link }) =>
+      `Link ID ${id(link)}, never the part of the link that unlocks it, unless another connection holds it. Our server doesn't say which link it skipped.`,
     alreadyHosted: () =>
-      "Didn't take these links, because another connection still holds one of them. This page asks again shortly.",
+      "Took the other links and skipped one that another connection still holds. This page asks again shortly.",
     paired: ({ link }, { role }) =>
       role === "sender"
         ? `Paired a recipient's page with link ID ${id(link)}. It sees both pages' IP addresses.`
@@ -157,26 +159,35 @@ const traces: TraceTexts = {
     serverToken: ({ link }) =>
       `A random token for this page's place in the transfer on link ID ${id(link)}, which it doesn't log.`,
     logHost: ({ links }) =>
-      links === 0
-        ? "A line that this page holds no links."
-        : `A line that this page holds ${plural(links, "link", "links")}, without their IDs.`,
+      links === undefined
+        ? "A line, if the links this page holds changed, with how many it holds, not counting any another connection holds, and without their IDs."
+        : links === 0
+          ? "A line that this page holds no links."
+          : `A line that this page holds ${plural(links, "link", "links")}, without their IDs.`,
     logJoined: ({ link }, { role }) =>
       role === "sender"
         ? `A line that a recipient's page joined link ID ${id(link)}.`
         : `A line that this page joined link ID ${id(link)}.`,
     logRelay: ({ link, count, bytes }, { size }) =>
       `${plural(count, "line", "lines")} for setup messages on link ID ${id(link)}, with their sizes (${size(bytes)} in all).`,
-    logRefused: ({ reason }, { role }) =>
+    logRefused: ({ link, reason }, { role }) =>
       role === "sender"
-        ? `A line that this page turned a recipient away, with the reason: ${traces.refused[reason]}.`
-        : `A line that this page was turned away, with the reason: ${traces.refused[reason]}.`,
+        ? `A line that this page turned a recipient away on link ID ${id(link)}, with the reason: ${traces.refused[reason]}.`
+        : `A line that this page was turned away on link ID ${id(link)}, with the reason: ${traces.refused[reason]}.`,
     logLeft: ({ link }, { role }) =>
       role === "sender"
         ? `A line that the recipient's page left link ID ${id(link)}.`
         : `A line that this page left link ID ${id(link)}.`,
-    logHostGone: () => "A line that the sender's page was gone.",
+    logHostGone: ({ link, later }, { role }) =>
+      role === "sender"
+        ? later
+          ? `A line that this page was gone on link ID ${id(link)}, if the recipient's page is still there. Our server writes it when it lets go of this page's links.`
+          : `A line that this page was gone on link ID ${id(link)}, because the recipient's page was still there.`
+        : `A line that the sender's page was gone on link ID ${id(link)}.`,
     logHostClosed: ({ links }) =>
-      `A line that this page's connection closed while it held ${plural(links, "link", "links")}, without their IDs.`,
+      links === undefined
+        ? "A line that this page's connection closed, with how many links it held, if it held any, and without their IDs."
+        : `A line that this page's connection closed while it held ${plural(links, "link", "links")}, without their IDs.`,
     logPath: ({ path }) =>
       `A line with how the connection went: ${traces.paths[path]}. No link ID.`,
     logResume: ({ link, refused }) =>
