@@ -400,7 +400,7 @@ export const en = {
     emailLabel: "Their email address",
     emailError: "Enter a valid email address, like name@example.com.",
     emailNotice:
-      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the file. For this link, our server could also put itself between you and the recipient. To see if it does, add them with a safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
+      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the file. For this link, our server could also put itself between you and the recipient. To see if it does, choose Safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
     check: {
       hint: (kind: Kind) =>
         `With a safety number, you compare 6 digits with them by phone or in person before ${items[kind].the} is sent, so you know nobody is in between.`,
@@ -674,7 +674,7 @@ export const en = {
     allDone: "Every link has delivered the secret",
     summary: (done: number, total: number) => `${done} of ${total} links have delivered the secret`,
     emailNotice:
-      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the secret. For this link, our server could also put itself between you and the recipient. To see if it does, add them with a safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
+      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the secret. For this link, our server could also put itself between you and the recipient. To see if it does, choose Safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
     // Only the statuses whose file wording would be wrong; the rest come from send.status.
     status: {
       declined: (name: string) =>
@@ -1483,7 +1483,7 @@ export const en = {
           lines: [
             [
               "",
-              "The link, key included, in the browser's history like any address. Your page refuses the link once the delivery is done, and the link works only while your page is open.",
+              "The link, key included, in the browser's history like any address. The link stops working once the delivery is done, and the link works only while your page is open.",
             ],
             [
               "file",
@@ -1575,9 +1575,9 @@ export const en = {
         ],
         [
           "The recipient confirms delivery",
-          "Nothing. The receipt goes between the browsers. If the link is opened again, your page refuses it as used.",
+          "Nothing from the receipt, which goes between the browsers. If the link is opened again, your page refuses it as used. After you choose Send another, your page sends its list of links again, now empty, so our server refuses the link as unknown.",
           "Nothing.",
-          'A later refusal, with the reason "used".',
+          'A later refusal, with the reason "used", or "unknown" after you choose Send another. Send another itself: that your page now offers no links.',
           "Nothing.",
         ],
         [

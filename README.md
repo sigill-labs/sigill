@@ -34,7 +34,7 @@ Send a file:
 
 Keep the sender's tab open until every recipient has the file. The file goes directly from the sender's browser to each recipient's browser, so it is only available while that tab is open.
 
-A link works once: after a confirmed delivery, opening it again shows "This link has already been used". There is no resume. If a transfer drops before delivery, the recipient starts over from the beginning with the same link.
+A link works once: after a confirmed delivery, opening it again shows "This link has already been used" while the sender's page still offers it. There is no resume. If a transfer drops before delivery, the recipient starts over from the beginning with the same link.
 
 ## Network tips
 

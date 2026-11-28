@@ -41,7 +41,7 @@
 //
 // Rules:
 // - A link is used only once the recipient's RECEIPT matches (delivered).
-//   Any later join on it is refused with "used".
+//   Any later join on it is refused with "used" while the page still hosts it.
 // - A join while a transfer is in progress (connecting, offered, receiving)
 //   is refused with "busy". The server normally refuses a second joiner
 //   itself; the sender is the authority either way.
