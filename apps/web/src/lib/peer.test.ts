@@ -328,7 +328,7 @@ async function harness(
   iceServers: RTCIceServer[] = [],
   wait = true,
   marked = wait,
-  callbacks: Pick<PeerOptions, "onStalled" | "onDisconnected" | "onPath"> = {},
+  callbacks: Pick<PeerOptions, "onStalled" | "onDisconnected" | "onPath" | "onRelayAdded"> = {},
 ) {
   const { linkId, secret } = createLink("https://localhost");
   const key = await deriveSignalKey(secret, linkId);
@@ -667,18 +667,32 @@ async function kinds(h: { signals(count: number): Promise<unknown[]> }, count: n
 }
 
 /** A sender that took the recipient's commitment and its answer, ICE username fragment "r1". */
-async function answeredSender(servers = relayServers) {
+async function answeredSender(servers = relayServers, onRelayAdded?: () => void) {
   resetFake(SENDER_FP);
-  const h = await harness("s", undefined, servers);
+  const h = await harness(
+    "s",
+    undefined,
+    servers,
+    true,
+    true,
+    onRelayAdded ? { onRelayAdded } : {},
+  );
   await h.relay({ kind: "commit", hash: await commitFingerprint(RECIPIENT_FP) });
   await h.relay({ kind: "answer", sdp: sdpWith(RECIPIENT_FP, "r1") });
   return { ...h, pc: lastPc() };
 }
 
 /** A recipient that answered an offer with ICE username fragment "s1". */
-async function answeredRecipient(servers = relayServers) {
+async function answeredRecipient(servers = relayServers, onRelayAdded?: () => void) {
   resetFake(RECIPIENT_FP);
-  const h = await harness("r", undefined, servers);
+  const h = await harness(
+    "r",
+    undefined,
+    servers,
+    true,
+    true,
+    onRelayAdded ? { onRelayAdded } : {},
+  );
   await h.relay({ kind: "offer", sdp: sdpWith(SENDER_FP, "s1"), check: false });
   return { ...h, pc: lastPc() };
 }
@@ -713,6 +727,34 @@ test("the sender adds the relay and restarts ICE once ICE has tried 3 s without 
   await sender.relay({ kind: "restart-answer", sdp: sdpWith(RECIPIENT_FP, "r2") });
   assert.equal(sender.pc.remoteDescription?.sdp, sdpWith(RECIPIENT_FP, "r2"));
   assert.deepEqual(sender.closes, []);
+});
+
+test("each side says when it added the relay, and only when the browser took it", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let adds = 0;
+  const added = () => adds++;
+  const sender = await answeredSender(relayServers, added);
+  t.mock.timers.tick(RELAY_FALLBACK_MS);
+  assert.deepEqual(await kinds(sender, 2), ["offer", "restart-offer"]);
+  assert.equal(adds, 1);
+
+  const refused = await answeredSender(relayServers, added);
+  refused.pc.refuseConfiguration = true;
+  t.mock.timers.tick(RELAY_FALLBACK_MS);
+  await refused.relay(ice("r1"));
+  const noTurn = await answeredSender(stunServers, added);
+  t.mock.timers.tick(RELAY_FALLBACK_MS);
+  await noTurn.relay(ice("r1"));
+  assert.equal(adds, 1);
+
+  const recipient = await answeredRecipient(relayServers, added);
+  await recipient.relay({ kind: "restart-offer", sdp: sdpWith(SENDER_FP, "s2") });
+  assert.deepEqual(await kinds(recipient, 3), ["commit", "answer", "restart-answer"]);
+  assert.equal(adds, 2);
+  const stunOnly = await answeredRecipient(stunServers, added);
+  await stunOnly.relay({ kind: "restart-offer", sdp: sdpWith(SENDER_FP, "s2") });
+  assert.deepEqual(await kinds(stunOnly, 3), ["commit", "answer", "restart-answer"]);
+  assert.equal(adds, 2);
 });
 
 test("the sender never restarts without TURN, or once ICE connected", async (t) => {

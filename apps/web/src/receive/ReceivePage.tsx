@@ -99,7 +99,7 @@
 import { type CodeResult, isLinkId } from "@fidant/protocol";
 import { cn } from "cn";
 import { type ComponentChildren, Fragment, type VNode } from "preact";
-import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import { Button, buttonVariants } from "#components/ui/button";
 import { Card, CardContent } from "#components/ui/card";
 import { Input } from "#components/ui/input";
@@ -118,6 +118,7 @@ import {
 } from "../lib/format.ts";
 import { deriveSignalKey } from "../lib/keys.ts";
 import { LINK_ID_BYTES, parseRecipientLocation } from "../lib/link.ts";
+import { askToNotify, notify, notifyPermission } from "../lib/notify.ts";
 import { createRecipientPeer, type OpenPath, type Peer, type PeerOpenInfo } from "../lib/peer.ts";
 import type { FileOffer, Resumable } from "../lib/receive-file.ts";
 import { ReceiveError, receiveFile } from "../lib/receive-file.ts";
@@ -132,7 +133,6 @@ import {
   takesRefusal,
 } from "../lib/receive-guards.ts";
 import { keepsPart, peerLostProblem, refusedProblem } from "../lib/receive-problem.ts";
-import { addRelay, type Kind, NO_RELAYS, type Tie } from "../lib/server-facts.ts";
 import { connectSignaling, type SignalingClient } from "../lib/signaling-client.ts";
 import {
   BLOB_WARN_BYTES,
@@ -144,6 +144,13 @@ import {
 } from "../lib/sink.ts";
 import { decodeText, isTextOffer } from "../lib/text-secret.ts";
 import {
+  createTraceLog,
+  fromMessage,
+  type TraceLog as Log,
+  recordAt,
+  type TraceEvent,
+} from "../lib/trace-log.ts";
+import {
   CheckNumber,
   Direct,
   field,
@@ -152,9 +159,9 @@ import {
   Page,
   PathLine,
   Problem,
-  ServerPanel,
   SwapLabel,
   TechDetails,
+  TraceDrawer,
   useCopyNote,
 } from "../ui.tsx";
 
@@ -264,16 +271,18 @@ export type ReceivePreview = {
   view?: View;
   emailed?: boolean;
   path?: OpenPath;
-  tie?: Tie;
 };
 
 export function ReceivePage({
   onStatus,
   preview,
+  shown,
 }: {
   /** Told "active" while a file or text is offered or arriving, which leaving the tab would lose, and "done" once it has arrived. */
   onStatus(status: TransferStatus): void;
   preview?: ReceivePreview | undefined;
+  /** False while another page is showing and this one is kept hidden. */
+  shown: boolean;
 }) {
   const { t, lang } = useI18n();
   const problemFor = (view: { problem: ProblemKey; text?: boolean }): ProblemText => {
@@ -303,10 +312,24 @@ export function ReceivePage({
     return () => removeEventListener("beforeunload", ask);
   }, [downloading]);
   const [picking, setPicking] = useState(false);
-  const [relayed, countRelay] = useReducer(addRelay, NO_RELAYS);
-  const [reachedServer, setReachedServer] = useState(false);
-  const [tie, setTie] = useState<Tie>("closed");
-  const [viaRelay, setViaRelay] = useState(false);
+  // Only in page memory, and on the page rather than the attempt: Try again keeps it, with a marker line.
+  const [traces, addTrace] = useReducer(recordAt, "recipient", createTraceLog);
+  const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
+  const [canAskToNotify, setCanAskToNotify] = useState(false);
+  const [notifyAnswer, setNotifyAnswer] = useState<"on" | "blocked" | undefined>(undefined);
+  const notifyId = useId();
+  // When the answer replaces the button, it takes the focus the button (or nothing) held.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (
+      notifyAnswer &&
+      (active === document.body || active === document.getElementById(`${notifyId}-me`))
+    ) {
+      document.getElementById(`${notifyId}-answer`)?.focus();
+    }
+  }, [notifyAnswer]);
+  // Never during prerender.
+  useEffect(() => setCanAskToNotify(notifyPermission() === "default"), []);
   const [path, setPath] = useState<OpenPath | undefined>(undefined);
   const attemptRef = useRef<Attempt | undefined>(undefined);
   const codeAsked = useRef<string | undefined>(undefined);
@@ -320,16 +343,21 @@ export function ReceivePage({
   /** Closes everything an attempt holds. `linger` keeps the peer up for a moment. */
   const release = (attempt: Attempt, linger = false) => {
     attempt.ended = true;
-    setTie("closed");
     attempt.abort.abort(new Error("attempt ended"));
     attempt.signaling.close();
+    const closePeer = () => {
+      if (attempt.peer) {
+        attempt.peer.close();
+        trace({ t: "peer-closed", ...(link && { link: link.linkId }) });
+      }
+    };
     if (linger) {
-      attempt.timers.push(setTimeout(() => attempt.peer?.close(), LINGER_MS));
+      attempt.timers.push(setTimeout(closePeer, LINGER_MS));
     } else {
       for (const timer of attempt.timers) {
         clearTimeout(timer);
       }
-      attempt.peer?.close();
+      closePeer();
     }
   };
 
@@ -345,7 +373,14 @@ export function ReceivePage({
 
     // A fresh ID per attempt, so the sender's refusal can name the attempt it refuses.
     const attemptId = encodeBase64url(crypto.getRandomValues(new Uint8Array(LINK_ID_BYTES)));
-    const signaling = connectSignaling({ onRelay: countRelay });
+    const signaling = connectSignaling({
+      onMessage: (...args) => {
+        const event = fromMessage(...args);
+        if (event) {
+          trace(event);
+        }
+      },
+    });
     const attempt: Attempt = {
       abort: new AbortController(),
       signaling,
@@ -407,9 +442,7 @@ export function ReceivePage({
         return;
       }
       setPath(resolved);
-      if (resolved === "relay") {
-        setViaRelay(true);
-      }
+      trace({ t: "path", path: resolved, link: linkId });
     };
     const outdated = (reason: "outdated" | "peer-outdated") =>
       finish({ s: "refused", problem: reason === "outdated" ? "outdated" : "senderOutdated" });
@@ -467,12 +500,12 @@ export function ReceivePage({
       () => finish({ s: "failed", problem: "server" }),
     );
     signaling.onOpen(() => {
-      setReachedServer(true);
+      // Before the `resume` or `join` below, which the log reads against this socket.
+      trace({ t: "socket-open" });
       if (!current()) {
         return;
       }
       opened = true;
-      setTie("unpaired");
       const action = onSocketOpen({
         channelOpen: attempt.channelOpen,
         hasToken: resumeToken !== undefined,
@@ -501,7 +534,6 @@ export function ReceivePage({
         case "close":
           // The transfer goes on without the server, which can no longer recover a dropped route.
           waiting = false;
-          setTie("closed");
           signaling.close();
           break;
         case "lost":
@@ -518,11 +550,11 @@ export function ReceivePage({
           break;
       }
     };
-    signaling.onClose(({ byClient }) => {
+    signaling.onClose(({ code, byClient }) => {
+      trace({ t: "socket-closed", code });
       if (byClient || !current()) {
         return;
       }
-      setTie("closed");
       if (!opened) {
         // The client retries; CONNECT_TIMEOUT_MS bounds the wait.
         return;
@@ -615,7 +647,6 @@ export function ReceivePage({
             attempt.peer.rejoined(message.iceServers);
             break;
           }
-          setTie("paired");
           attempt.relayRefused = !message.turn;
           attempt.peer = createRecipientPeer({
             signaling,
@@ -628,6 +659,7 @@ export function ReceivePage({
               onOpen(channel, info);
             },
             onPath: showPath,
+            onRelayAdded: () => trace({ t: "relay-added", link: linkId }),
             // The same `join` again, token included (decision 0031). After `host-gone` it would
             // be a new pairing with the sender's new socket, so then nothing is sent.
             onStalled: () => {
@@ -645,12 +677,14 @@ export function ReceivePage({
               }
             },
             onConnected: () => restart.connected(),
-            onClose: (reason) =>
-              reason === "unsupported"
+            onClose: (reason) => {
+              trace({ t: "peer-closed", link: linkId });
+              return reason === "unsupported"
                 ? finish({ s: "failed", problem: "browser" })
                 : reason === "outdated" || reason === "peer-outdated"
                   ? outdated(reason)
-                  : lost(),
+                  : lost();
+            },
           });
           break;
         }
@@ -666,16 +700,12 @@ export function ReceivePage({
           if (action === "ignore") {
             break;
           }
-          const answered = waiting;
           waiting = false;
           if (action === "refused") {
             without(false);
             break;
           }
           resumeToken = message.token;
-          if (answered) {
-            setTie("paired");
-          }
           // The sender's page restarts ICE only when asked, so the `join` the stall wanted goes now.
           if (
             action === "keep-and-join" &&
@@ -726,9 +756,6 @@ export function ReceivePage({
           }
           break;
         case "host-gone":
-          if (current()) {
-            setTie("unpaired");
-          }
           // A transfer under way can finish without the server; the peer
           // closing ends it if the sender really went away. Before that,
           // browsers can take many seconds to notice a closed tab over the
@@ -866,13 +893,19 @@ export function ReceivePage({
     if (preview) {
       return;
     }
+    if (link) {
+      trace({ t: "address-bar" });
+    }
     start();
     // Once the page is really going, close the peer so the sender hears it now, not when ICE
     // consent runs out about 15 s later. Unless the page may come back from the back-forward
     // cache, also close signaling with 1000, so the server frees the attempt at once instead of
     // holding it for a takeover (0033).
     const onPageHide = (event: PageTransitionEvent) => {
-      attemptRef.current?.peer?.close();
+      if (attemptRef.current?.peer) {
+        attemptRef.current.peer.close();
+        trace({ t: "peer-closed", ...(link && { link: link.linkId }) });
+      }
       if (!event.persisted) {
         attemptRef.current?.signaling.close();
       }
@@ -902,10 +935,7 @@ export function ReceivePage({
     }
     setView(preview.view ?? { s: "connecting" });
     setPicking(false);
-    setReachedServer(true);
-    setTie(preview.tie ?? "closed");
     setPath(preview.path);
-    setViaRelay(preview.path === "relay");
   }, [preview]);
 
   // Each step replaces the button that had focus, so focus moves to the new step's heading.
@@ -917,6 +947,34 @@ export function ReceivePage({
     }
     focusHeading();
   }, [view.s]);
+  // Only fixed text: the system keeps a notification outside the page. notify() shows nothing
+  // while the page has focus or without the recipient's permission.
+  useEffect(() => {
+    if (preview) {
+      return;
+    }
+    const words = t.receive.notify;
+    if (view.s === "done") {
+      trace({ t: "received", secret: view.offer.text });
+      notify((view.offer.text ? t.secret : t.receive).doneTitle, words.doneBody(view.offer.text));
+    } else if (view.s === "offer") {
+      notify(words.offerTitle, words.offerBody(view.offer.text));
+    } else if (view.s === "failed" || view.s === "refused") {
+      notify(words.stoppedTitle, words.stoppedBody);
+    }
+  }, [view.s]);
+  // The safety number needs the recipient once it shows, before they said what the sender read.
+  const checkReady = view.s === "check" && view.number !== undefined && view.said === undefined;
+  useEffect(() => {
+    if (checkReady && !preview) {
+      notify(t.receive.notify.checkTitle, t.receive.notify.checkBody);
+    }
+  }, [checkReady]);
+  // Try again and Show again: the user starts a new attempt, which the log marks.
+  const startAgain = () => {
+    trace({ t: "new-transfer" });
+    start();
+  };
 
   const onAccept = () => {
     const attempt = attemptRef.current;
@@ -1022,19 +1080,6 @@ export function ReceivePage({
   }
 
   const emailed = link?.mark !== undefined;
-  const isText = "offer" in view ? view.offer.text : "text" in view ? view.text : undefined;
-  const kind: Kind = isText === undefined ? "unknown" : isText ? "secret" : "file";
-  const panel = reachedServer ? (
-    <ServerPanel
-      sees={t.server.seesRecipient}
-      holds={t.server.recipientHolds(tie, emailed, kind)}
-      relayed={relayed}
-      afterwards={t.server.afterwardsRecipient(emailed)}
-      viaRelay={viaRelay}
-      emailed={emailed}
-      kind={kind}
-    />
-  ) : null;
 
   let body: VNode;
   switch (view.s) {
@@ -1241,7 +1286,7 @@ export function ReceivePage({
         <>
           <h1>{view.text ? t.secret.declinedTitle : t.receive.declinedTitle}</h1>
           <p>{t.receive.declinedBody}</p>
-          <Button type="button" variant="outline" onClick={() => start()}>
+          <Button type="button" variant="outline" onClick={startAgain}>
             {view.text ? t.secret.showAgain : t.receive.showAgain}
           </Button>
         </>
@@ -1254,7 +1299,7 @@ export function ReceivePage({
           <Problem {...problem} />
           {/* A retry in the same browser fails the same way, and on a link with the safety number on it would use up one of the sender's attempts. */}
           {view.problem !== "browser" && (
-            <Button type="button" onClick={() => start()}>
+            <Button type="button" onClick={startAgain}>
               {t.receive.tryAgain}
             </Button>
           )}
@@ -1268,8 +1313,173 @@ export function ReceivePage({
     <Page tall>
       {/* A new key per step makes its heading a new node, so moving focus there is announced. */}
       <Fragment key={view.s}>{body}</Fragment>
-      {panel}
+      <ReceiveBar
+        view={view}
+        traces={traces}
+        visible={shown}
+        notifyId={notifyId}
+        canAskToNotify={canAskToNotify}
+        notifyAnswer={notifyAnswer}
+        onNotify={async () => {
+          const answer = await askToNotify();
+          if (answer !== "default") {
+            setCanAskToNotify(false);
+            setNotifyAnswer(answer === "granted" ? "on" : "blocked");
+          }
+        }}
+      />
     </Page>
+  );
+}
+
+/**
+ * The page's bottom bar, like the send page's: what is happening now, Notify me while the
+ * recipient waits, and the Traces button. Green once the file or secret has arrived.
+ */
+function ReceiveBar({
+  view,
+  traces,
+  visible,
+  notifyId,
+  canAskToNotify,
+  notifyAnswer,
+  onNotify,
+}: {
+  view: View;
+  traces: Log;
+  visible: boolean;
+  notifyId: string;
+  canAskToNotify: boolean;
+  notifyAnswer: "on" | "blocked" | undefined;
+  onNotify(): void;
+}) {
+  const { t } = useI18n();
+  const { bar } = t.receive;
+  const secret = "offer" in view ? view.offer.text : "text" in view ? view.text === true : false;
+  const words = secret ? t.secret : t.receive;
+  const done = view.s === "done";
+  // While the recipient waits for the sender or for the file, Notify me is worth offering.
+  const waiting =
+    view.s === "connecting" || view.s === "receiving" || (view.s === "check" && view.said === true);
+  const [main, sub] = ((): [string, string | undefined] => {
+    switch (view.s) {
+      case "connecting":
+        return [bar.connecting, t.send.keepOpen];
+      case "verify":
+        return [bar.verify, t.send.keepOpen];
+      case "check":
+        return [view.said ? bar.checkWaiting : bar.check, t.send.keepOpen];
+      case "offer":
+        return [bar.offer, undefined];
+      case "receiving":
+        return [words.receivingTitle, t.send.keepOpen];
+      case "done":
+        return [words.doneTitle, bar.checked];
+      case "declined":
+        return [words.declinedTitle, undefined];
+      case "refused":
+      case "failed":
+        return [bar.stopped, undefined];
+    }
+  })();
+  const progress =
+    view.s === "done"
+      ? 1
+      : view.s === "receiving"
+        ? view.offer.size === 0
+          ? 0
+          : view.bytes / view.offer.size
+        : 0;
+  return (
+    <div
+      data-bottom-bar
+      data-page-bar
+      // White on emerald-700 is 5.5:1.
+      class={`fixed inset-x-0 bottom-0 z-40 overflow-hidden bg-background/80 px-4 py-1.5 backdrop-blur-xl transition-colors duration-700 motion-reduce:transition-none ${done ? "text-white" : ""}`}
+    >
+      {/* The green that takes the bar once the file or secret has arrived, as on the send page. */}
+      <div
+        class={`absolute inset-x-0 top-0 h-[170%] bg-linear-to-b from-emerald-700 from-60% to-transparent transition-transform duration-700 ease-out motion-reduce:transition-none ${done ? "translate-y-0" : "-translate-y-full"}`}
+        aria-hidden="true"
+      />
+      {/* The bar's top edge: a track that fills while the file arrives and stays full once done. */}
+      <div class="absolute inset-x-0 top-0 h-1 bg-border" aria-hidden="true">
+        {progress > 0 && (
+          <div
+            class={`h-full transition-[width,background-color] motion-reduce:transition-none ${done ? "bg-emerald-400" : "bg-emerald-600"}`}
+            style={{ width: `${progress * 100}%` }}
+          />
+        )}
+      </div>
+      {/* The row with the text and Notify me is centred with the page's column, at most as wide;
+          the Traces button is at the bar's right edge. On a phone the row takes what the button
+          leaves. */}
+      <div class="relative grid grid-cols-[1fr_minmax(0,36rem)_1fr] items-center">
+        <div
+          data-bar-row
+          class="col-start-2 flex min-h-[3.95rem] min-w-0 items-center gap-2 sm:gap-3"
+        >
+          {/* The step's heading says the same, so this is no live region. */}
+          <p class="m-0 flex min-w-0 flex-1 items-center gap-3 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere">
+            {done ? (
+              <Icon name="check" class="size-4 flex-none" />
+            ) : (
+              <span class="flex size-4 flex-none items-center justify-center" aria-hidden="true">
+                <span
+                  class={
+                    waiting
+                      ? "size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+                      : "size-2 rounded-full bg-muted-foreground"
+                  }
+                />
+              </span>
+            )}
+            <span>
+              <span class="block">{main}</span>
+              {sub && (
+                <span class={`block font-normal ${done ? "" : "text-muted-foreground"}`}>
+                  {sub}
+                </span>
+              )}
+            </span>
+          </p>
+          {/* Notify me and the browser's answer share one grid cell, the hidden one keeping its
+            space, so the bar's text doesn't move as they swap. */}
+          {(canAskToNotify || notifyAnswer) && (
+            <div class="grid flex-none items-center justify-items-end">
+              <Button
+                id={`${notifyId}-me`}
+                type="button"
+                variant="outline"
+                size="sm"
+                // A bell alone on a phone, the bell and the words from sm up, as on the send page.
+                className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${waiting && canAskToNotify ? "" : "invisible"}`}
+                title={t.send.notifyMe}
+                onClick={onNotify}
+              >
+                <Icon name="bell" class="size-4" />
+                <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
+              </Button>
+              {notifyAnswer && (
+                // Takes the focus the button held, and tells the recipient what the browser answered.
+                <p
+                  id={`${notifyId}-answer`}
+                  tabIndex={-1}
+                  role="status"
+                  class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || done ? "invisible" : ""} text-muted-foreground`}
+                >
+                  {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        <div class="col-start-3 flex justify-end pl-2 sm:pl-3">
+          {/* The file's name never shows in the traces; its size and type are on the page already. */}
+          <TraceDrawer onGreen={done} visible={visible} traces={traces} facts={[]} />
+        </div>
+      </div>
+    </div>
   );
 }
 

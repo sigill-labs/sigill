@@ -2,15 +2,18 @@
 
 import { cn } from "cn";
 import type { AnchorHTMLAttributes, ComponentChildren } from "preact";
-import { useEffect, useId, useRef, useState } from "preact/hooks";
+import { createPortal } from "preact/compat";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { DropdownMenu } from "radix-ui";
 import { Alert, AlertDescription, AlertTitle } from "#components/ui/alert";
+import { Badge } from "#components/ui/badge";
 import { buttonVariants } from "#components/ui/button";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "#components/ui/sheet";
 import { useI18n } from "./i18n/I18n.tsx";
 import { LANGUAGE_NAMES, type Lang, localizedPath } from "./i18n/language.ts";
-import { formatBytes } from "./lib/format.ts";
+import { describeTrace } from "./lib/format.ts";
 import type { OpenPath } from "./lib/peer.ts";
-import type { Kind, Relayed } from "./lib/server-facts.ts";
+import { type TraceLog as Log, tracesLeft, type Who } from "./lib/trace-log.ts";
 import type { Theme } from "./theme.ts";
 
 export const ICONS = {
@@ -89,6 +92,12 @@ export const ICONS = {
     <>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
       <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.4 6 2.7 7.3A1 1 0 0 1 20 17H4a1 1 0 0 1-.7-1.7C4.6 14 6 12.5 6 8z" />
+      <path d="M10.3 21a2 2 0 0 0 3.4 0" />
     </>
   ),
   footprints: (
@@ -559,147 +568,229 @@ export function PathLine({ path }: { path: OpenPath }) {
   );
 }
 
-type ServerPanelProps = {
-  kind: Kind;
-  sees: string;
-  holds: string;
-  relayed: Relayed;
-  afterwards: string;
-  /** A connection on this page went through our TURN relay. */
-  viaRelay: boolean;
-  /** The server got the key of a link on this page, to email it. */
-  emailed: boolean;
+// One colour per holder, light and dark, each at least 4.5:1 for text-xs (WCAG 1.4.3). The word
+// on the pill carries the meaning; the colour only helps tell holders apart.
+const WHO_CLASSES: Record<Who, string> = {
+  server: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  relay: "bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200",
+  sender: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  recipient: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  connection: "bg-muted text-foreground",
 };
 
-/** What our server and relay see, hold and keep, as rows for `Facts`. */
-function serverRows(
-  t: ReturnType<typeof useI18n>["t"],
-  lang: Lang,
-  { sees, holds, relayed, afterwards, viaRelay, emailed, kind }: ServerPanelProps,
-): ReadonlyArray<readonly [string, string]> {
-  return [
-    [t.server.seesLabel, sees],
-    [t.server.holdsLabel, holds],
-    [
-      t.server.passedOnLabel,
-      t.server.passedOn(relayed.messages, formatBytes(relayed.bytes, lang), emailed),
-    ],
-    [
-      t.server.fileDataLabel(kind),
-      viaRelay ? t.server.fileDataRelayed(kind) : t.server.fileData(kind),
-    ],
-    [t.server.logsLabel, t.server.logs(kind)],
-    [t.server.afterwardsLabel, afterwards],
-    ...(viaRelay
-      ? ([
-          [t.server.relaySeesLabel, t.server.relaySees(kind)],
-          [t.server.relayLogsLabel, t.server.relayLogs(kind)],
-          [t.server.relayKeepsLabel, t.server.relayKeeps(kind)],
-        ] as const)
-      : []),
-  ];
-}
-
-/** The receive page's server facts: a section with a disclosure. */
-export function ServerPanel(props: ServerPanelProps) {
+/**
+ * This page's traces, oldest first, each with when this page saw it, who holds it and where, what
+ * it is and for how long. Screen readers hear a line as "14:02:11 Server, Memory, lasted 29 s: Link
+ * ID abc123…". No live region: a line per signaling message would flood a screen reader.
+ */
+export function TraceLog({ log }: { log: Log }) {
   const { t, lang } = useI18n();
-  const headingId = useId();
   return (
-    <section class="mt-10 text-[0.9rem]" aria-labelledby={headingId}>
-      <details>
-        <summary id={headingId} class="cursor-pointer font-medium text-muted-foreground">
-          {t.server.heading}
-        </summary>
-        <Facts rows={serverRows(t, lang, props)} />
-      </details>
-    </section>
+    <>
+      <p class="mt-3 mb-0 text-muted-foreground">{t.traces.note}</p>
+      {log.entries.length === 0 ? (
+        <p class="mt-3 mb-0">{t.traces.empty}</p>
+      ) : (
+        <ol class="mt-3 mb-0 grid list-none gap-2 p-0">
+          {log.entries.map((entry, index) => {
+            const line = describeTrace(entry, log.role, lang);
+            return (
+              // Keyed by index: lines only change or drop off the front, and hold no state of their own.
+              <li key={index} class="wrap-anywhere">
+                {/* The first line: when, who, where and for how long, at the right edge even when it wraps; the text goes under it. */}
+                <span class="flex flex-wrap items-baseline gap-x-2">
+                  <time
+                    datetime={new Date(entry.at).toISOString()}
+                    class="text-muted-foreground tabular-nums"
+                  >
+                    {line.time}
+                  </time>{" "}
+                  {/* The marker that starts a new transfer holds nothing, so it has no pills or duration. */}
+                  {line.who && (
+                    <>
+                      <Badge variant="secondary" className={WHO_CLASSES[line.who.kind]}>
+                        {line.who.text}
+                      </Badge>
+                      <span class="sr-only">, </span>
+                      {line.where !== undefined && (
+                        <>
+                          <Badge variant="outline">{line.where}</Badge>
+                          <span class="sr-only">, </span>
+                        </>
+                      )}
+                      <span class="ms-auto text-end text-muted-foreground">{line.duration}</span>
+                    </>
+                  )}
+                </span>
+                <span class="sr-only">: </span>
+                <span class="block">{line.what}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </>
   );
 }
 
-/** The send page's "Technical details": an icon button, for the bottom bar, that opens the file facts and the server facts in a drawer. */
-export function ServerDrawer({
+/** Tailwind's `lg`, from which the traces are a panel beside the page; styles.css uses the same width. */
+const WIDE = "(min-width: 64rem)";
+
+/** Whether a media query matches, following changes. False while the build prerenders a page, which has no screen. */
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof matchMedia === "function" && matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const list = matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener("change", update);
+    return () => list.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
+/** A page's "Traces": an icon button, for its bottom bar, that shows and hides the file facts and the trace log, in a panel beside the page on a wide screen and in a drawer on a narrower one. */
+export function TraceDrawer({
   facts,
   visible,
   onGreen,
-  ...panel
-}: ServerPanelProps & {
-  /** The file's facts, shown above the server's; empty for a secret. */
+  traces,
+}: {
+  /** This page's trace log, shown under the file facts. */
+  traces: Log;
+  /** The file's facts, shown above the log; empty for a secret. */
   facts: ReadonlyArray<readonly [string, ComponentChildren]>;
-  /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it. */
+  /** False while the page is hidden. A hidden page closes the drawer, so it never shows over the next page, and drops its panel, which is outside the page. */
   visible: boolean;
   /** True while the bar behind the button is green, with white text. */
   onGreen: boolean;
 }) {
-  const { t, lang } = useI18n();
-  const headingId = useId();
-  const titleId = useId();
-  const drawer = useRef<HTMLDialogElement>(null);
-  // Whether the last press began on the dimmed page, so a text selection dragged out of the drawer doesn't close it.
-  const pressedOutside = useRef(false);
+  const { t } = useI18n();
+  const left = tracesLeft(traces);
+  const name = t.traces.button(left);
+  // shadcn's Sheet, never modal. On a wide screen the button shows it as a panel beside the page,
+  // until the button or Close hides it; on a narrower one it opens a drawer over the page, with a
+  // scrim and a scroll lock (styles.css) of our own.
+  const wide = useMediaQuery(WIDE);
+  const [pinned, setPinned] = useState(false);
+  const [drawer, setDrawer] = useState(false);
+  const open = visible && (wide ? pinned : drawer);
+  // App's slot beside the pages, which holds the panel on a wide screen.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById("traces-slot")), []);
   useEffect(() => {
+    // A hidden page closes the drawer, so it never shows over the next page.
     if (!visible) {
-      drawer.current?.close();
+      setDrawer(false);
     }
   }, [visible]);
+  useEffect(() => {
+    // Crossing lg swaps the panel and the drawer, so neither opens on its own after the other was used.
+    setDrawer(false);
+    setPinned(false);
+  }, [wide]);
   return (
-    <>
-      {/* 40 × 40, no taller than the bar's two lines of text. showModal from the button returns
-          focus to it when the drawer closes. */}
-      <button
-        type="button"
-        aria-label={t.common.techDetails}
-        title={t.common.techDetails}
+    <Sheet
+      open={open}
+      onOpenChange={(next) => (wide ? setPinned(next) : setDrawer(next))}
+      // Never modal: a modal Radix dialog injects a <style> to lock scrolling, which the CSP
+      // blocks (docs/decisions/0005-shadcn-ui-on-preact.md). styles.css locks it instead.
+      modal={false}
+    >
+      {/* The drawer's scrim, as Radix draws none for a sheet that isn't modal. In <body>, as the
+          bar's backdrop blur would hold it inside the bar. A press on it is outside the sheet, so
+          it closes the sheet, and the scrim takes the click the page behind would have got. */}
+      {open && !wide && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              aria-hidden="true"
+              class="fixed inset-0 z-[49] bg-black/50 motion-safe:animate-in motion-safe:fade-in-0"
+            />,
+            document.body,
+          )
+        : null}
+      {/* 40 × 40, no taller than the bar's two lines of text; from lg the icon and the word, which
+          starts the button's name. The badge counts the traces still kept; its number is in the
+          button's name, so screen readers hear it there and not twice. */}
+      <SheetTrigger
+        aria-label={name}
+        title={name}
         class={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "size-10 cursor-pointer",
+          "relative size-10 flex-none cursor-pointer lg:w-auto lg:gap-2 lg:px-3",
           onGreen
-            ? "text-white hover:bg-white/15 hover:text-white focus-visible:border-white focus-visible:ring-white/60 dark:hover:bg-white/15"
-            : "text-muted-foreground",
+            ? "text-white hover:bg-white/15 hover:text-white focus-visible:border-white focus-visible:ring-white/60 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
+            : // Open, a light tint rather than the ghost button's solid one.
+              "text-muted-foreground aria-expanded:bg-foreground/10 aria-expanded:text-muted-foreground",
         )}
-        onClick={() => drawer.current?.showModal()}
       >
         <Icon name="footprints" class="size-5" />
-      </button>
-      {/* A native dialog, like the safety number's: it holds focus and dims the page without
-          injecting a style, which the CSP blocks. A drawer from the right; on a phone it covers
-          the screen. Its content stays rendered while closed. */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the click is on the dimmed page; Escape and the Close button close it from the keyboard */}
-      <dialog
-        ref={drawer}
-        aria-labelledby={titleId}
-        class="m-0 ml-auto h-dvh max-h-none w-full max-w-none overflow-y-auto border-border bg-popover text-[0.9rem] text-popover-foreground shadow-xl backdrop:bg-black/50 open:animate-in open:slide-in-from-right motion-reduce:animate-none sm:w-[28rem] sm:border-l [&_code]:text-[0.85rem]"
-        // The padding is on the inner box, so a press on the dialog itself is a press on the dimmed page.
-        onPointerDown={(event) => {
-          pressedOutside.current = event.target === event.currentTarget;
-        }}
-        onClick={(event) => {
-          if (pressedOutside.current && event.target === event.currentTarget) {
-            event.currentTarget.close();
-          }
-          pressedOutside.current = false;
-        }}
-      >
-        <div class="min-h-full p-6">
+        <span class="hidden lg:inline">{t.traces.title}</span>
+        {left > 0 && (
+          <Badge
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute top-0 right-0 h-4 min-w-4 px-1 text-[0.625rem] tabular-nums lg:-top-1.5 lg:-right-1.5",
+              onGreen && "bg-white text-emerald-800",
+            )}
+          >
+            {left > 99 ? "99+" : left}
+          </Badge>
+        )}
+      </SheetTrigger>
+      {/* A hidden page drops its panel at once, so it doesn't slide out over the page that shows. */}
+      {visible && (
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          aria-describedby={undefined}
+          container={wide ? slot : undefined}
+          // The whole screen on a phone; a drawer from the right from sm up. From lg the panel, in
+          // the slot in the page's flow: it sticks under the sticky header, ends above the bottom
+          // bar, and stops at the footer with the slot, so it never lags behind a scroll.
+          className="w-full gap-0 overflow-y-auto overscroll-none p-6 text-[0.9rem] max-sm:border-l-0 lg:sticky lg:inset-auto lg:top-[calc(4rem+1px)] lg:z-30 lg:mt-[calc(4rem+1px)] lg:h-[calc(100dvh-4rem-1px-var(--bar-height))] lg:max-w-none lg:shadow-none [&_code]:text-[0.85rem]"
+          // The panel stays beside the page: it takes no focus and a click on the page doesn't
+          // close it.
+          onOpenAutoFocus={(event) => wide && event.preventDefault()}
+          onInteractOutside={(event) => wide && event.preventDefault()}
+          // Radix hears Escape on the whole document before anything else. While a native modal
+          // dialog (the safety number's) is open over the page, Escape is that dialog's: the panel
+          // stays, and the dialog gets the close request Radix's cancelled key took from it, once
+          // per press, as its own guard against a held key would allow. Otherwise the wide panel
+          // closes on an Escape from inside it only, not on one typed into the page.
+          onEscapeKeyDown={(event) => {
+            const dialog = document.querySelector<HTMLDialogElement>("dialog:modal");
+            if (dialog) {
+              event.preventDefault();
+              if (
+                !event.repeat &&
+                dialog.dispatchEvent(new Event("cancel", { cancelable: true }))
+              ) {
+                dialog.close();
+              }
+              return;
+            }
+            const inPanel =
+              event.target instanceof Element &&
+              event.target.closest('[data-slot="sheet-content"]') !== null;
+            if (wide && !inPanel) {
+              event.preventDefault();
+            }
+          }}
+        >
           <div class="flex items-center justify-between gap-4">
-            <h2 id={titleId} class="m-0 text-[1.25rem] font-bold">
-              {t.common.techDetails}
-            </h2>
-            <form method="dialog">
-              <button type="submit" class={buttonVariants({ variant: "ghost", size: "sm" })}>
-                {t.common.close}
-              </button>
-            </form>
+            <SheetTitle className="m-0 text-[1.25rem] font-bold">{t.traces.title}</SheetTitle>
+            <SheetClose class={buttonVariants({ variant: "ghost", size: "sm" })}>
+              {t.common.close}
+            </SheetClose>
           </div>
           {facts.length > 0 && <Facts rows={facts} />}
-          <section class="mt-6" aria-labelledby={headingId}>
-            <h3 id={headingId} class="m-0 text-[length:inherit] font-semibold">
-              {t.server.heading}
-            </h3>
-            <Facts rows={serverRows(t, lang, panel)} />
-          </section>
-        </div>
-      </dialog>
-    </>
+          <TraceLog log={traces} />
+        </SheetContent>
+      )}
+    </Sheet>
   );
 }
 

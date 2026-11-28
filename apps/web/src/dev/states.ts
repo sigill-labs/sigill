@@ -151,7 +151,7 @@ const receive = (group: string, name: string, preview: ReceivePreview): DevState
   group,
   name,
   page: "receive",
-  preview: () => ({ tie: "paired", ...preview }),
+  preview: () => preview,
 });
 
 const FILE_OFFER = {
@@ -172,7 +172,6 @@ const verify = (more: Partial<Extract<View, { s: "verify" }>>): ReceivePreview =
     ...more,
   },
   emailed: true,
-  tie: "unpaired",
 });
 
 type ProblemKey = keyof typeof en.receive.problems;
@@ -190,7 +189,6 @@ const REFUSED: ReadonlySet<ProblemKey> = new Set([
 const PROBLEMS = (Object.keys(en.receive.problems) as ProblemKey[]).filter((k) => k !== "badLink");
 const problem = (key: ProblemKey, text: boolean): ReceivePreview => ({
   view: { s: REFUSED.has(key) ? "refused" : "failed", problem: key, text },
-  tie: "closed",
 });
 
 export const STATES: readonly DevState[] = [
@@ -242,21 +240,12 @@ export const STATES: readonly DevState[] = [
   send("Offered", () => sending([{ name: "Anna", steps: OPEN }])),
   send("Sending", () => sending([{ name: "Anna", steps: SENDING }], { from: "Anna Lind" })),
   send("Sending through the relay", () =>
-    sending(
-      [
-        {
-          name: "Anna",
-          steps: [
-            joined(),
-            on("channel-open"),
-            path("relay"),
-            on("accepted"),
-            progress(SIZE * 0.4),
-          ],
-        },
-      ],
-      { viaRelay: true },
-    ),
+    sending([
+      {
+        name: "Anna",
+        steps: [joined(), on("channel-open"), path("relay"), on("accepted"), progress(SIZE * 0.4)],
+      },
+    ]),
   ),
   send("Delivered to one", () => sending([{ name: "Anna", steps: DELIVERED }], { from: "Peter" })),
   send("Delivered to all", () =>
@@ -312,7 +301,7 @@ export const STATES: readonly DevState[] = [
         { name: "Failed", email: "erik@example.se", steps: [mail("failed", false)] },
         { name: "Limit", email: "frida@example.se", steps: [mail("limit", false)] },
       ],
-      { mail: true, mailed: true, from: "Peter" },
+      { mail: true, from: "Peter" },
     ),
   ),
   // `server-lost` unbinds every emailed link at once, so it gets a state of its own.
@@ -322,7 +311,7 @@ export const STATES: readonly DevState[] = [
         { name: "Anna" },
         { name: "Björn", email: "bjorn@example.se", steps: [mail("sent"), serverLost] },
       ],
-      { mail: true, mailed: true, lostServer: true },
+      { mail: true, lostServer: true },
     ),
   ),
   send("Server unreachable", () => sending([{ name: "Anna" }], { lostServer: true })),
@@ -362,7 +351,7 @@ export const STATES: readonly DevState[] = [
   secret("Server unreachable", () => ({ sender: build([{ name: "Anna" }]), lostServer: true })),
 
   receive("Receive", "Link malformed", {}),
-  receive("Receive", "Connecting", { view: { s: "connecting" }, tie: "unpaired" }),
+  receive("Receive", "Connecting", { view: { s: "connecting" } }),
   receive("Receive", "Email code: not asked yet", verify({ asked: false })),
   receive("Receive", "Email code: sending", verify({ sending: true })),
   ...CODE_RESULTS.map((result) => receive("Receive", `Email code: ${result}`, verify({ result }))),
@@ -396,9 +385,8 @@ export const STATES: readonly DevState[] = [
   receive("Receive", "File received", {
     view: { s: "done", offer: FILE_OFFER, blob: undefined, sha256: SHA256 },
     path: "direct",
-    tie: "closed",
   }),
-  receive("Receive", "File declined", { view: { s: "declined", text: false }, tie: "closed" }),
+  receive("Receive", "File declined", { view: { s: "declined", text: false } }),
   receive("Receive", "Secret offered", { view: { s: "offer", offer: TEXT_OFFER }, path: "direct" }),
   receive("Receive", "Receiving a secret", {
     view: { s: "receiving", offer: TEXT_OFFER, bytes: 0 },
@@ -407,7 +395,6 @@ export const STATES: readonly DevState[] = [
   receive("Receive", "Secret shown", {
     view: { s: "done", offer: TEXT_OFFER, blob: new Blob([SECRET]), sha256: SHA256 },
     path: "direct",
-    tie: "closed",
   }),
   receive("Receive", "Long secret shown", {
     view: {
@@ -417,9 +404,8 @@ export const STATES: readonly DevState[] = [
       sha256: SHA256,
     },
     path: "direct",
-    tie: "closed",
   }),
-  receive("Receive", "Secret declined", { view: { s: "declined", text: true }, tie: "closed" }),
+  receive("Receive", "Secret declined", { view: { s: "declined", text: true } }),
 
   ...PROBLEMS.map((key) => receive("Receive problems", key, problem(key, false))),
   ...PROBLEMS.filter((key) => key in en.secret.problems).map((key) =>

@@ -10,6 +10,7 @@ import {
   expectStepAtTop,
   test as harness,
   makeName,
+  openTraces,
   recipientRow,
 } from "../src/fixtures.ts";
 import {
@@ -84,23 +85,32 @@ test("delivers a file to two recipients with a verified checksum", async ({
   // The send page has no "Why?" to open.
   await expect(sender.getByText("Why?", { exact: true })).toHaveCount(0);
 
-  const panel = sender.getByRole("region", {
-    name: "What our server has right now",
-    includeHidden: true,
-  });
-  await expect(panel).toContainText("None. The file goes directly between browsers.");
-  await expect(panel).toContainText(/[1-9]\d* setup messages? \(/);
+  // The drawer's trace log names each link by its server-side prefix, never the file.
+  const prefix = (link: string) => `${new URL(link).pathname.replace(/^\/r\//, "").slice(0, 6)}…`;
+  const senderTraces = await openTraces(sender);
+  await expect(senderTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
+  for (const link of links) {
+    await expect(senderTraces).toContainText(`link ID ${prefix(link)}`);
+  }
+  await expect(senderTraces).toContainText(/Connection, [^:]*: Route: direct, /);
+  await expect(senderTraces).not.toContainText(file.name);
+  // The Traces button counts the traces still kept, in its name.
+  await expect(sender.getByRole("button", { name: /^Traces/ })).toHaveAccessibleName(
+    /^Traces, \d+ still kept$/,
+  );
 
-  const recipientPanel = received[0]?.page.getByRole("region", {
-    name: "What our server has right now",
-  });
-  if (!recipientPanel) {
+  const recipientPage = received[0]?.page;
+  if (!recipientPage) {
     throw new Error("no recipient");
   }
-  await expect(recipientPanel).toContainText(
-    "Nothing about this page once it notices the connection has closed",
+  const recipientTraces = await openTraces(recipientPage);
+  // Once the transfer is done, this page's connection to our server has closed.
+  await expect(recipientTraces).toContainText(
+    /Server, Memory, lasted [^:]*: This page connected\./,
   );
-  await expect(recipientPanel).toContainText(/[1-9]\d* setup messages? \(/);
+  await expect(recipientTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
+  await expect(recipientTraces).toContainText(`link ID ${prefix(links[0] ?? "")}`);
+  await expect(recipientTraces).not.toContainText(file.name);
 });
 
 // A chunk is 48 KiB in Chromium (min(48 KiB, maxMessageSize - 64)): empty, one byte short of a
@@ -195,9 +205,7 @@ test("refuses used, unknown and malformed links", async ({ demo, leaks, canary, 
   const malformed = await demo.open("malformed");
   await malformed.goto("/r/not-a-link#nope");
   await expect(malformed.getByText("This link doesn't work")).toBeVisible();
-  await expect(
-    malformed.getByRole("region", { name: "What our server has right now", includeHidden: true }),
-  ).toHaveCount(0);
+  await expect(malformed.getByRole("button", { name: /^Traces/ })).toHaveCount(0);
 });
 
 // No one joins here, so the sender receives no signaling and the demo fixture's frame checks don't apply.

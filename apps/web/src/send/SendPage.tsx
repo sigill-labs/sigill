@@ -102,11 +102,9 @@ import { hashFile, sendFile } from "../lib/send-file.ts";
 import {
   armedLinks,
   CHECK_TIMEOUT_MS,
-  emailBound,
   findRecipient,
   hostedLinks,
   initialSenderState,
-  isActive,
   refusesRelay,
   SETUP_TIMEOUT_MS,
   type SenderAction,
@@ -114,9 +112,9 @@ import {
   type SenderState,
   update,
 } from "../lib/sender-state.ts";
-import { addRelay, NO_RELAYS } from "../lib/server-facts.ts";
 import { connectSignaling, type SignalingClient } from "../lib/signaling-client.ts";
 import { MAX_TEXT_BYTES, MAX_TEXT_LENGTH, textFile, textFitsOneChunk } from "../lib/text-secret.ts";
+import { createTraceLog, fromMessage, recordAt, type TraceEvent } from "../lib/trace-log.ts";
 import {
   FILE_HREF,
   field,
@@ -126,7 +124,7 @@ import {
   lede,
   Page,
   SECRET_HREF,
-  ServerDrawer,
+  TraceDrawer,
 } from "../ui.tsx";
 import { type CheckView, RecipientList } from "./RecipientList.tsx";
 
@@ -229,8 +227,6 @@ export type SendPreview = {
   useEmail?: boolean;
   /** The link's verification. Defaults to a safety number when email is chosen, else plain. */
   linkKind?: LinkKind;
-  mailed?: boolean;
-  viaRelay?: boolean;
   from?: string;
   fileError?: ErrorOf<"fileError">;
   nameError?: ErrorOf<"nameError">;
@@ -261,8 +257,9 @@ export function SendPage({
   const [hash, setHash] = useState<Hash>({ status: "none" });
   const [sender, setSender] = useState<SenderState>(initialSenderState);
   const [lostServer, setLostServer] = useState(false);
-  const [relayed, countRelay] = useReducer(addRelay, NO_RELAYS);
-  const [viaRelay, setViaRelay] = useState(false);
+  // Only in page memory; kept through Send another, which adds a marker line.
+  const [traces, addTrace] = useReducer(recordAt, "sender", createTraceLog);
+  const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
   const [nameError, setNameError] = useState<ErrorOf<"nameError">>("");
   const [mail, setMail] = useState(false);
   // Emailing a link is opt-in: until the sender ticks it, there is no email field.
@@ -271,8 +268,6 @@ export function SendPage({
   // Each open check's number, by link ID: on screen only, gone with its connection.
   const [checks, setChecks] = useState<Readonly<Record<string, CheckView>>>({});
   const [emailError, setEmailError] = useState(false);
-  // ponytail: sticky for the page, since the server saw the key and keeps email counts for an hour
-  const [mailed, setMailed] = useState(false);
   const [fileError, setFileError] = useState<ErrorOf<"fileError">>("");
   const [from, setFrom] = useState("");
   const [fromError, setFromError] = useState<ErrorOf<"fromError">>("");
@@ -342,7 +337,10 @@ export function SendPage({
     });
     clearTimeout(connection.deadline);
     connection.abort.abort(new Error("connection closed"));
-    connection.peer?.close();
+    if (connection.peer) {
+      connection.peer.close();
+      trace({ t: "peer-closed", link: linkId });
+    }
   };
 
   const sendPath = (linkId: string, connection: Connection, path: ConnectionPath) => {
@@ -393,9 +391,8 @@ export function SendPage({
         const refused = refusesRelay(latest, attempt, path);
         sendPath(linkId, connection, refused ? "failed" : path);
         dispatch({ type: "path", linkId, attempt, path });
-        // ponytail: sticky for the page, since the relay's log lines stay after the transfer
-        if (path === "relay" && !refused) {
-          setViaRelay(true);
+        if (!refused) {
+          trace({ t: "path", path, link: linkId });
         }
       }
     };
@@ -407,6 +404,7 @@ export function SendPage({
       iceServers,
       check: recipient.check === true,
       onPath,
+      onRelayAdded: () => trace({ t: "relay-added", link: linkId }),
       // The same `host` again surfaces a socket that died without closing (decision 0033).
       onDisconnected: () => {
         if (connectionsRef.current.get(linkId) === connection) {
@@ -485,6 +483,7 @@ export function SendPage({
         );
       },
       onClose(reason, _detail, name) {
+        trace({ t: "peer-closed", link: linkId });
         console.warn(`fidant: sender dropped a connection: ${reason}${name ? ` (${name})` : ""}`);
         if (reason === "connection-failed") {
           sendPath(linkId, connection, "failed");
@@ -539,14 +538,24 @@ export function SendPage({
   // Applies an action, then carries out its effects. Never called during render.
   dispatchRef.current = (action: SenderAction) => {
     const hosted = hostedLinks(senderRef.current).join();
+    const before = senderRef.current.recipients.map((r) => r.linkId);
     const next = update(senderRef.current, action);
     const changed = next.state !== senderRef.current;
     if (changed) {
+      // Every way a link comes or goes: add, remove, Send another, an email refusal replacing it.
+      const after = next.state.recipients.map((r) => r.linkId);
+      for (const link of before.filter((id) => !after.includes(id))) {
+        trace({ t: "link-removed", link });
+      }
+      for (const link of after.filter((id) => !before.includes(id))) {
+        trace({ t: "link-added", link });
+      }
       senderRef.current = next.state;
       setSender(next.state);
     }
     // Only fixed text and counts: the system keeps a notification outside the page.
     if (changed && action.type === "receipt" && action.match) {
+      trace({ t: "delivered", secret: text });
       const { recipients } = next.state;
       const done = recipients.filter((r) => r.status === "delivered").length;
       const all = done === recipients.length;
@@ -591,7 +600,14 @@ export function SendPage({
     if (preview) {
       return;
     }
-    const signaling = connectSignaling({ onRelay: countRelay });
+    const signaling = connectSignaling({
+      onMessage: (...args) => {
+        const event = fromMessage(...args);
+        if (event) {
+          trace(event);
+        }
+      },
+    });
     signalingRef.current = signaling;
     let disposed = false;
     const dispatch = (action: SenderAction) => dispatchRef.current(action);
@@ -606,6 +622,8 @@ export function SendPage({
     let rehost: ReturnType<typeof setTimeout> | undefined;
 
     signaling.onOpen(() => {
+      // Before the `resume` and `host` below, which the log reads against this socket.
+      trace({ t: "socket-open" });
       clearTimeout(lost);
       lost = undefined;
       setLostServer(false);
@@ -623,7 +641,8 @@ export function SendPage({
       }
       host();
     });
-    signaling.onClose(({ byClient }) => {
+    signaling.onClose(({ code, byClient }) => {
+      trace({ t: "socket-closed", code });
       if (byClient || disposed) {
         return;
       }
@@ -779,11 +798,9 @@ export function SendPage({
     setHash(preview.hash ?? { status: "none" });
     setChecks(preview.checks ?? {});
     setLostServer(preview.lostServer ?? false);
-    setViaRelay(preview.viaRelay ?? false);
     setMail(preview.mail ?? false);
     setUseEmail(preview.useEmail ?? false);
     setLinkKind(preview.linkKind ?? (preview.useEmail ? "check" : "plain"));
-    setMailed(preview.mailed ?? false);
     setFrom(preview.from ?? "");
     setFileError(preview.fileError ?? "");
     setNameError(preview.nameError ?? "");
@@ -899,9 +916,7 @@ export function SendPage({
         from: fromRef.current,
         lang,
       });
-      if (sent) {
-        setMailed(true);
-      } else {
+      if (!sent) {
         dispatchRef.current({ type: "email", linkId: link.linkId, status: "failed" });
       }
     }
@@ -931,6 +946,7 @@ export function SendPage({
   // every card: each link stops being hosted. The name stays, now unlocked.
   const onSendAnother = () => {
     dispatchRef.current({ type: "reset" });
+    trace({ t: "new-transfer" });
     setChecks({});
     prepare(undefined);
     setFileError("");
@@ -959,9 +975,6 @@ export function SendPage({
     !text && (hash.status === "preparing" || hash.status === "failed") ? hash.status : undefined;
   const tooLong = textLength > MAX_TEXT_LENGTH;
   const full = sender.recipients.length >= MAX_LINKS;
-  // ponytail: counts by status, so it over-counts if a recipient's signaling drops mid-transfer; track joined/left if that matters
-  const connected = sender.recipients.filter(isActive).length;
-  const emailed = sender.recipients.filter(emailBound);
   const unfinished = sender.recipients.some((r) => r.status !== "delivered");
   const delivered = sender.recipients.filter((r) => r.status === "delivered").length;
   const allDone = hasRecipients && !unfinished;
@@ -1530,124 +1543,126 @@ export function SendPage({
         </div>
         {/* As tall at every step: two lines of text with room around them, and three lines, which a
             phone beside Notify me needs, in the same height with less room. */}
-        <div class="relative mx-auto flex min-h-[3.95rem] max-w-xl items-center gap-3">
-          {/* All three texts share one grid cell, the hidden ones keeping their space, so the bar is
+        {/* The row with the text and Notify me is centred with the page's column, at most as wide;
+            the Traces button is at the bar's right edge. On a phone the row takes what the button
+            leaves. */}
+        <div class="relative grid grid-cols-[1fr_minmax(0,36rem)_1fr] items-center">
+          <div
+            data-bar-row
+            class="col-start-2 flex min-h-[3.95rem] min-w-0 items-center gap-2 sm:gap-3"
+          >
+            {/* All three texts share one grid cell, the hidden ones keeping their space, so the bar is
               as tall at a step as while sending and when done, whichever text wraps to more lines
-              (see SwapLabel). */}
-          <p class="m-0 grid flex-1 text-[0.9rem] leading-snug font-medium" aria-hidden="true">
-            <span
-              class={`col-start-1 row-start-1 flex items-center gap-3 ${hasRecipients ? "invisible" : ""}`}
+              (see SwapLabel). The text gives way on a narrow phone, hyphenating a long word, or
+              breaking it where the browser can't, so the buttons beside it stay on the screen. */}
+            <p
+              class="m-0 grid min-w-0 flex-1 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere"
+              aria-hidden="true"
             >
-              <span class="flex size-4 flex-none items-center justify-center">
-                <span class="size-2 rounded-full bg-muted-foreground" />
-              </span>
-              <span>{stepText}</span>
-            </span>
-            <span
-              class={`col-start-1 row-start-1 flex items-center gap-3 ${unfinished ? "" : "invisible"}`}
-            >
-              {/* In a box as wide as the check that replaces it, so the text starts at the same place. */}
-              <span class="flex size-4 flex-none items-center justify-center">
-                <span class="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
-              </span>
-              <span>
-                <span class="block">{sendingText}</span>
-                <span class="block font-normal text-muted-foreground">{t.send.keepOpen}</span>
-              </span>
-            </span>
-            <span
-              class={`col-start-1 row-start-1 flex items-center gap-3 ${allDone ? "" : "invisible"}`}
-            >
-              <Icon name="check" class="size-4 flex-none" />
-              <span>
-                {/* Short, like "0 of 1 delivered" before it, so it fits beside Notify me on a phone;
-                    the status line says it in full. */}
-                <span class="block">{t.send.doneTitle}</span>
-                <span class="block font-normal">{t.send.closeTab}</span>
-              </span>
-            </span>
-          </p>
-          {/* Once there is a link, Notify me while sending, the browser's answer and Send another
-              file once done share one grid cell, the hidden ones keeping their space, so the bar's
-              text wraps the same and the bar keeps its height as they swap (see SwapLabel). */}
-          {(hasRecipients || canAskToNotify || notifyAnswer) && (
-            <div class="grid flex-none items-center justify-items-end">
-              <Button
-                id={id("notify-me")}
-                type="button"
-                variant="outline"
-                size="sm"
-                className={`col-start-1 row-start-1 ${unfinished && canAskToNotify ? "" : "invisible"}`}
-                onClick={async () => {
-                  const answer = await askToNotify();
-                  if (answer !== "default") {
-                    setCanAskToNotify(false);
-                    setNotifyAnswer(answer === "granted" ? "on" : "blocked");
-                  }
-                }}
+              <span
+                class={`col-start-1 row-start-1 flex items-center gap-3 ${hasRecipients ? "invisible" : ""}`}
               >
-                {t.send.notifyMe}
-              </Button>
-              {notifyAnswer && (
-                // Takes the focus the button held, and tells the sender what the browser answered.
-                // Invisible while the button is offered again after an earlier answer.
-                <p
-                  id={id("notify-answer")}
-                  tabIndex={-1}
-                  role="status"
-                  // As wide as the button, which keeps its place, so the answer wraps instead of
-                  // taking width from the bar's text.
-                  class={`col-start-1 row-start-1 m-0 w-0 min-w-full text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
-                >
-                  {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
-                </p>
-              )}
-              {hasRecipients && (
-                // Only once every link has delivered, so it never cuts a transfer off.
+                <span class="flex size-4 flex-none items-center justify-center">
+                  <span class="size-2 rounded-full bg-muted-foreground" />
+                </span>
+                <span>{stepText}</span>
+              </span>
+              <span
+                class={`col-start-1 row-start-1 flex items-center gap-3 ${unfinished ? "" : "invisible"}`}
+              >
+                {/* In a box as wide as the check that replaces it, so the text starts at the same place. */}
+                <span class="flex size-4 flex-none items-center justify-center">
+                  <span class="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+                </span>
+                <span>
+                  <span class="block">{sendingText}</span>
+                  <span class="block font-normal text-muted-foreground">{t.send.keepOpen}</span>
+                </span>
+              </span>
+              <span
+                class={`col-start-1 row-start-1 flex items-center gap-3 ${allDone ? "" : "invisible"}`}
+              >
+                <Icon name="check" class="size-4 flex-none" />
+                <span>
+                  {/* Short, like "0 of 1 delivered" before it, so it fits beside Notify me on a phone;
+                    the status line says it in full. */}
+                  <span class="block">{t.send.doneTitle}</span>
+                  <span class="block font-normal">{t.send.closeTab}</span>
+                </span>
+              </span>
+            </p>
+            {/* Once there is a link, Notify me while sending, the browser's answer and Send another
+              file once done share one grid cell. Send another is only there once done, so while
+              sending the cell is as narrow as the bell and the bar's text keeps to two rows. */}
+            {(hasRecipients || canAskToNotify || notifyAnswer) && (
+              <div class="grid flex-none items-center justify-items-end">
                 <Button
+                  id={id("notify-me")}
                   type="button"
+                  variant="outline"
                   size="sm"
-                  className={`col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60 ${allDone ? "" : "invisible"}`}
-                  onClick={onSendAnother}
+                  // A bell alone on a phone, where the bar's text needs the room; the bell and the
+                  // words from sm up. The words stay for screen readers either way.
+                  className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${unfinished && canAskToNotify ? "" : "invisible"}`}
+                  title={t.send.notifyMe}
+                  onClick={async () => {
+                    const answer = await askToNotify();
+                    if (answer !== "default") {
+                      setCanAskToNotify(false);
+                      setNotifyAnswer(answer === "granted" ? "on" : "blocked");
+                    }
+                  }}
                 >
-                  {(text ? t.secret : t.send).sendAnother}
+                  <Icon name="bell" class="size-4" />
+                  <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
                 </Button>
-              )}
-            </div>
-          )}
-          {/* At the bar's end on every step; a closed dialog takes no space, an open one is in the top layer. */}
-          <ServerDrawer
-            onGreen={allDone}
-            visible={shown}
-            facts={
-              file && !text
-                ? [
-                    [t.common.size, t.format.bytes(file.size)],
-                    [t.common.type, file.type || t.common.typeMissing],
-                    [
-                      "SHA-256",
-                      hash.status === "ready" ? <code>{hash.hex}</code> : t.send.hashPending,
-                    ],
-                  ]
-                : []
-            }
-            sees={t.server.seesSender}
-            holds={t.server.senderHolds({
-              online: !lostServer,
-              links: hostedLinks(sender).length,
-              connected,
-              relay: allowRelay,
-              emailed: emailed.length,
-              sending: emailed.filter((r) => r.mail === "sending").length,
-              mailed,
-              kind: text ? "secret" : "file",
-            })}
-            relayed={relayed}
-            afterwards={t.server.senderAfterwards(!lostServer, mailed)}
-            viaRelay={viaRelay}
-            emailed={mailed}
-            kind={text ? "secret" : "file"}
-          />
+                {notifyAnswer && (
+                  // Takes the focus the button held, and tells the sender what the browser answered.
+                  // Invisible while the button is offered again after an earlier answer.
+                  <p
+                    id={id("notify-answer")}
+                    tabIndex={-1}
+                    role="status"
+                    // Narrow, so the answer wraps instead of taking much width from the bar's text.
+                    class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
+                  >
+                    {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
+                  </p>
+                )}
+                {hasRecipients && allDone && (
+                  // Only once every link has delivered, so it never cuts a transfer off.
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60"
+                    onClick={onSendAnother}
+                  >
+                    {(text ? t.secret : t.send).sendAnother}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          {/* At the bar's end on every step. */}
+          <div class="col-start-3 flex justify-end pl-2 sm:pl-3">
+            <TraceDrawer
+              onGreen={allDone}
+              visible={shown}
+              traces={traces}
+              facts={
+                file && !text
+                  ? [
+                      [t.common.size, t.format.bytes(file.size)],
+                      [t.common.type, file.type || t.common.typeMissing],
+                      [
+                        "SHA-256",
+                        hash.status === "ready" ? <code>{hash.hex}</code> : t.send.hashPending,
+                      ],
+                    ]
+                  : []
+              }
+            />
+          </div>
         </div>
       </div>
     </Page>

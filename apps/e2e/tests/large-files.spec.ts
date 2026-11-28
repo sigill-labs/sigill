@@ -34,9 +34,8 @@ for (const { gb, minutes } of [
       const { page: sender } = await actor("sender");
       await sender.goto("/send");
       await chooseFile(sender, file.path);
-      await sender.getByRole("button", { name: "Technical details" }).click();
+      await sender.getByRole("button", { name: /^Traces/ }).click();
       await expect(sender.getByText(sha256)).toBeVisible({ timeout: gb * 2 * 60_000 });
-      // The drawer covers the page until it is closed.
       await sender.getByRole("button", { name: "Close" }).click();
       const name = makeName(leaks, canary, "Anna");
       await sender.getByLabel("Who is it for?").fill(name);

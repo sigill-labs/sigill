@@ -1,9 +1,10 @@
-// Browser notifications that tell the sender a link has delivered.
+// Browser notifications that tell the sender a link has delivered, and the recipient that a
+// file or secret needs them or has arrived.
 //
 // A notification leaves the page: the operating system shows it and can keep
 // it in its notification list, and some systems mirror that list to other
 // devices. So callers pass only fixed text and counts, never a file name, a
-// recipient's name, a link or a key.
+// sender's or recipient's name, a link or a key.
 
 import { notifyIcon } from "./notify-icon.ts";
 
@@ -41,7 +42,7 @@ export async function askToNotify(): Promise<NotificationPermission | "unsupport
 }
 
 /**
- * Shows a notification if the sender allowed it and isn't looking at the page.
+ * Shows a notification if the user allowed it and isn't looking at the page.
  * Clicking it brings the page back.
  */
 export function notify(title: string, body: string): void {

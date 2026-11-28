@@ -1,6 +1,8 @@
 // Display helpers shared by the sender and recipient pages.
 
+import type { TraceContext } from "../i18n/en.ts";
 import { type Lang, MESSAGES } from "../i18n/language.ts";
+import { duration, placeOf, type Role, type TraceEntry, type What, type Who } from "./trace-log.ts";
 
 /** Lowercase hex, as `shasum -a 256` prints it. */
 export function toHex(bytes: Uint8Array): string {
@@ -80,4 +82,68 @@ export function formatTimeLeft(seconds: number, lang: Lang): string {
     value,
   );
   return MESSAGES[lang].format.timeLeft(duration);
+}
+
+/** A local 24-hour time with seconds, like "14:02:40". */
+export function formatClock(ms: number): string {
+  const date = new Date(ms);
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
+}
+
+/**
+ * A span this page saw, in whole units: "under 1 s", "29 s", "4 min", "1 h 5 min". The units are
+ * the same in Swedish.
+ */
+export function formatSpan(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 1) {
+    return "under 1 s";
+  }
+  if (seconds < 60) {
+    return `${seconds} s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+
+/**
+ * A trace log line in words: its time, who holds the trace and where (undefined for the marker
+ * that starts a new transfer; `where` is undefined for the route between the browsers), what it
+ * holds and for how long.
+ */
+export function describeTrace(
+  entry: TraceEntry,
+  role: Role,
+  lang: Lang,
+): {
+  time: string;
+  who: { kind: Who; text: string } | undefined;
+  where: string | undefined;
+  what: string;
+  duration: string;
+} {
+  const texts = MESSAGES[lang].traces;
+  // Each kind's text takes its own kind of line; TypeScript can't follow that through the lookup.
+  const what = texts.what[entry.what.kind] as (what: What, context: TraceContext) => string;
+  const place = placeOf(entry.what, role);
+  const span = duration(entry);
+  return {
+    time: formatClock(entry.at),
+    who: place && { kind: place.who, text: texts.who[place.who] },
+    where: place?.where === undefined ? undefined : texts.where[place.where],
+    what: what(entry.what, { role, size: (bytes) => formatBytes(bytes, lang) }),
+    duration:
+      span.kind === "lasted"
+        ? texts.lasted(formatSpan(span.ms))
+        : span.kind === "stated"
+          ? texts.stated[span.how]
+          : texts.stays,
+  };
 }

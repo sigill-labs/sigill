@@ -307,7 +307,7 @@ for (const row of scenarios) {
         let downloads = 0;
         recipient.page.on("download", () => downloads++);
         await recipient.page.goto(link);
-        // Exact: "Couldn't connect" alone also matches the server panel.
+        // Exact: the problem's title alone, not a longer text that contains it.
         await expect(
           recipient.page.getByText("Couldn't connect to the sender's computer", { exact: true }),
         ).toBeVisible({ timeout: 45_000 });

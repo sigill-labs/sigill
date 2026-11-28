@@ -12,6 +12,7 @@ import {
   fakeSavePicker,
   test as harness,
   makeName,
+  openTraces,
   recipientRow,
 } from "../src/fixtures.ts";
 import {
@@ -176,9 +177,8 @@ harness("a recipient who can't reach the server is told so", async ({ actor, lea
     recipient.getByText("The server connects you to the sender. Check your internet connection."),
   ).toBeVisible();
   await expect(recipient.getByRole("button", { name: "Try again" })).toBeVisible();
-  await expect(
-    recipient.getByRole("region", { name: "What our server has right now", includeHidden: true }),
-  ).toHaveCount(0);
+  // The page never reached the server, so no trace names it.
+  await expect(await openTraces(recipient)).not.toContainText(/\bServer,/);
 });
 
 test("a waiting recipient sees when the sender goes offline", async ({ demo, leaks, canary }) => {
@@ -191,9 +191,9 @@ test("a waiting recipient sees when the sender goes offline", async ({ demo, lea
   await expect(recipient.getByRole("button", { name: "Download" })).toBeVisible();
   await sender.close();
   await expect(recipient.getByText("The sender's page is closed")).toBeVisible();
-  await expect(
-    recipient.getByRole("region", { name: "What our server has right now" }),
-  ).toContainText("Nothing about this page once it notices the connection has closed");
+  await expect(await openTraces(recipient)).toContainText(
+    /Server, Memory, lasted [^:]*: This page connected\./,
+  );
 });
 
 test("a lost sender says whether the download can continue", async ({ demo, leaks, canary }) => {

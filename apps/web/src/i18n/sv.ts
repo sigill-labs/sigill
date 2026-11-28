@@ -1,42 +1,18 @@
 // Swedish text. Same keys as en.ts.
 
 import type { LogFields } from "@fidant/protocol";
-import type { Kind, Tie } from "../lib/server-facts.ts";
-import type { Messages, Nouns, Section, Sections } from "./en.ts";
+import type { Kind, Messages, Nouns, Section, Sections, TraceTexts } from "./en.ts";
 
 const items: Nouns = {
   file: {
-    label: "Filinnehåll",
-    The: "Filen",
     the: "filen",
     it: "den",
     encrypted: "krypterad",
-    data: "filinnehåll",
-    key: "den del av länken som låser upp filen",
-    unlocks: "den del som låser upp filen",
-    seen: "den krypterade filen som passerar, med storleken avrundad uppåt så att den exakta storleken inte syns",
   },
   secret: {
-    label: "Hemlighet",
-    The: "Hemligheten",
     the: "hemligheten",
     it: "den",
     encrypted: "krypterad",
-    data: "hemligheter",
-    key: "den del av länken som låser upp hemligheten",
-    unlocks: "den del som låser upp hemligheten",
-    seen: "den krypterade hemligheten som passerar, vilket inte visar något om dess längd",
-  },
-  unknown: {
-    label: "Innehåll",
-    The: "Det som delas",
-    the: "det som delas",
-    it: "det",
-    encrypted: "krypterat",
-    data: "det som delas",
-    key: "den del av länken som låser upp det som delas",
-    unlocks: "den del som låser upp det som delas",
-    seen: "de krypterade uppgifterna som passerar, med storleken avrundad uppåt så att den exakta storleken inte syns",
   },
 };
 
@@ -74,6 +50,148 @@ const logFields: Record<"event" | keyof LogFields, readonly [string, string]> = 
     "platsen på datorn där servern kan nås (dess portnummer)",
     "För att bekräfta att servern startade där den ska.",
   ],
+};
+
+/** Ett länk-ID som loggen visar det: de 6 första tecknen och en ellips. */
+const id = (link: string) => `${link}…`;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+const traces: TraceTexts = {
+  title: "Spår",
+  button: (left) => (left === 0 ? "Spår" : `Spår, ${left} finns kvar`),
+  note: 'Tiderna är när den här sidan såg varje händelse. "Varade" är hur länge den här sidan såg att ett spår fanns kvar. Alla andra tider är så som vår server, vårt relä och webbläsarna är byggda att bete sig, vilket den här sidan inte kan kontrollera.',
+  empty: "Inget ännu.",
+  who: {
+    server: "Server",
+    relay: "Relä",
+    sender: "Avsändare",
+    recipient: "Mottagare",
+    connection: "Anslutning",
+  },
+  where: {
+    memory: "Minne",
+    log: "Logg",
+    addressBar: "Adressfält",
+    disk: "Disk",
+  },
+  what: {
+    connected: () =>
+      "Den här sidan anslöt. Servern ser sidans IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",
+    holdsLink: ({ link }) => `Länk-ID ${id(link)}, aldrig den del av länken som låser upp den.`,
+    holdsLinkMaybe: ({ link }) =>
+      `Länk-ID ${id(link)}, om inte en annan anslutning har den. Aldrig den del av länken som låser upp den. Vår server säger inte vilka länkar den hoppade över.`,
+    alreadyHosted: () =>
+      "Tog emot de andra länkarna och hoppade över de länkar som en annan anslutning fortfarande har. Den här sidan frågar igen om en stund.",
+    paired: ({ link }, { role }) =>
+      role === "sender"
+        ? `Kopplade ihop en mottagares sida med länk-ID ${id(link)}. Servern ser båda sidornas IP-adresser.`
+        : `Kopplade ihop den här sidan med avsändarens via länk-ID ${id(link)}. Servern ser båda sidornas IP-adresser.`,
+    rejoined: ({ link }, { role }) =>
+      role === "sender"
+        ? `Att mottagarens anslutning för länk-ID ${id(link)} bröts, och när, eftersom deras sida anslöt igen.`
+        : `Att den här sidans anslutning för länk-ID ${id(link)} bröts, och när, eftersom sidan anslöt igen.`,
+    credentials: () =>
+      "Skapade inloggningsuppgifter till reläet för det här paret och skickade dem till båda sidorna.",
+    relayed: ({ link, count, bytes }, { size }) =>
+      `Skickade vidare ${plural(count, "krypterat uppkopplingsmeddelande", "krypterade uppkopplingsmeddelanden")} (${size(bytes)}) för länk-ID ${id(link)}, som servern inte kan läsa.`,
+    serverToken: ({ link }) =>
+      `Ett slumpmässigt värde för den här sidans plats i överföringen på länk-ID ${id(link)}, som servern inte loggar.`,
+    logHost: ({ links }) =>
+      links === undefined
+        ? "En rad, om länkarna som den här sidan har ändrades, med hur många den har, utan de som en annan anslutning har och utan deras ID."
+        : links === 0
+          ? "En rad om att den här sidan inte har några länkar."
+          : `En rad om att den här sidan har ${plural(links, "länk", "länkar")}, utan deras ID.`,
+    logJoined: ({ link }, { role }) =>
+      role === "sender"
+        ? `En rad om att en mottagares sida anslöt till länk-ID ${id(link)}.`
+        : `En rad om att den här sidan anslöt till länk-ID ${id(link)}.`,
+    logRelay: ({ link, count, bytes }, { size }) =>
+      `${plural(count, "rad", "rader")} om uppkopplingsmeddelanden för länk-ID ${id(link)}, med deras storlek (${size(bytes)} totalt).`,
+    logRefused: ({ link, reason }, { role }) =>
+      role === "sender"
+        ? `En rad om att den här sidan nekade en mottagare på länk-ID ${id(link)}, med orsaken: ${traces.refused[reason]}.`
+        : `En rad om att den här sidan nekades på länk-ID ${id(link)}, med orsaken: ${traces.refused[reason]}.`,
+    logLeft: ({ link, later }, { role }) =>
+      role === "sender"
+        ? `En rad om att mottagarens sida lämnade länk-ID ${id(link)}.`
+        : later
+          ? `En rad om att den här sidan lämnade länk-ID ${id(link)}, om den här sidan inte tar tillbaka sin plats. Vår server skriver den när den släpper den här sidans plats.`
+          : `En rad om att den här sidan lämnade länk-ID ${id(link)}.`,
+    logHostGone: ({ link, later }, { role }) =>
+      role === "sender"
+        ? later
+          ? `En rad om att den här sidan var borta på länk-ID ${id(link)}, om mottagarens sida fortfarande är kvar. Vår server skriver den när den släpper den här sidans länkar.`
+          : `En rad om att den här sidan var borta på länk-ID ${id(link)}, eftersom mottagarens sida fortfarande var kvar.`
+        : `En rad om att avsändarens sida var borta på länk-ID ${id(link)}.`,
+    logHostClosed: ({ links }) =>
+      links === undefined
+        ? "En rad om att den här sidans anslutning stängdes, med hur många länkar den hade, om den hade några, utan deras ID."
+        : `En rad om att den här sidans anslutning stängdes medan den hade ${plural(links, "länk", "länkar")}, utan deras ID.`,
+    logPath: ({ path }) => `En rad om hur anslutningen gick: ${traces.paths[path]}. Inget länk-ID.`,
+    logResume: ({ link, refused }) =>
+      refused
+        ? `En rad om att den här sidan bad om att få tillbaka sin plats på länk-ID ${id(link)}, men inte fick det.`
+        : `En rad om att den här sidan fick tillbaka sin plats på länk-ID ${id(link)}.`,
+    logError: ({ code }) =>
+      `En rad om att servern avvisade ett meddelande från den här sidan: ${traces.errors[code]}.`,
+    stunSees: () =>
+      "Ser varje webbläsares offentliga IP-adress när webbläsaren frågar reläet efter den. Reläet loggar den inte, utom i en tillfällig logg bara för att rätta ett fel eller stoppa missbruk.",
+    relayAdded: () =>
+      "Lades till i anslutningen, så reläet kan se båda webbläsarnas IP-adresser, även om en direkt väg vinner.",
+    relayCarries: () =>
+      "För krypterad data mellan de två webbläsarna. Reläet kan inte låsa upp den.",
+    linkKey: ({ link }) =>
+      `Länk ${id(link)} och den del som låser upp den, bara i den här flikens minne.`,
+    relayCredentials: () => "Inloggningsuppgifter till reläet, från vår server.",
+    browserToken: ({ link }) =>
+      `Ett slumpmässigt värde från vår server för den här sidans plats i överföringen på länk-ID ${id(link)}, i minnet.`,
+    addressBar: () =>
+      "Länken, med den del som låser upp den, i adressfältet och webbläsarens historik.",
+    received: ({ secret }) =>
+      secret ? "Hemligheten, i den här sidans minne." : "Filen, där du sparade den.",
+    newTransfer: () => "En ny överföring börjar här.",
+    delivered: ({ secret }) =>
+      secret
+        ? "Hemligheten, kontrollerad mot det den här sidan skickade."
+        : "Filen, kontrollerad mot det den här sidan skickade.",
+    path: ({ path }) => `Väg: ${traces.paths[path]}.`,
+  },
+  stated: {
+    connection: "under anslutningen",
+    dropped: "ungefär 1 min",
+    log30d: "30 dagar",
+    notKept: "sparas inte",
+    tab: "tills fliken stängs",
+    credential5m: "5 min",
+    relayNoLog: "sparas inte; en fellogg högst 7 dagar",
+    relayAllocation: "medan allokeringen finns; en fellogg högst 7 dagar",
+    history: "tills historiken rensas",
+    peerConnection: "under anslutningen",
+    attempt: "tills överföringen slutar",
+  },
+  lasted: (span) => `varade ${span}`,
+  stays: "tills den raderas",
+  refused: {
+    used: "länken var redan använd",
+    busy: "avsändaren var upptagen med en annan mottagare",
+    unknown: "länken är inte öppen",
+    drop: "avsändaren gav upp det försöket",
+    starting: "vår server hade precis startat",
+  },
+  errors: {
+    "bad-message": "ett meddelande som servern inte kunde läsa",
+    "wrong-role": "ett meddelande som den här sidans roll inte skickar",
+    "already-hosted": "en länk som en annan anslutning har",
+    "already-joined": "en anslutningsbegäran för en annan länk på samma anslutning",
+    "not-on-link": "ett meddelande för en länk som den här sidan inte är ansluten till",
+  },
+  paths: {
+    direct: "direkt, utan relä",
+    stun: "direkt, via de offentliga adresser som vårt relä hjälpte till att hitta",
+    relay: "via vårt relä",
+    failed: "misslyckades",
+  },
 };
 
 export const sv: Messages = {
@@ -507,6 +625,28 @@ export const sv: Messages = {
       why: "Numret kommer från den här anslutningen. Om någon satt mellan dig och avsändaren skulle era skärmar visa olika nummer.",
       expires: "Kontrollnumret går ut efter 5 minuter.",
     },
+    bar: {
+      connecting: "Ansluter till avsändaren",
+      verify: "Bekräfta din e-post",
+      check: "Jämför kontrollnumret",
+      checkWaiting: "Väntar på avsändaren",
+      offer: "Redo när du är",
+      checked: "Kontrollerad, exakt som skickad",
+      stopped: "Inte mottaget",
+    },
+    notify: {
+      checkTitle: "Kontrollnumret är klart",
+      checkBody: "Läs upp det för avsändaren.",
+      offerTitle: "Redo när du är",
+      offerBody: (secret: boolean) =>
+        secret ? "En hemlighet väntar på dig." : "En fil väntar på dig.",
+      doneBody: (secret: boolean) =>
+        secret
+          ? "Öppna fliken för att se den."
+          : "Vi har kontrollerat den: det är exakt filen som skickades.",
+      stoppedTitle: "Inte mottaget",
+      stoppedBody: "Öppna fliken för att se varför.",
+    },
     whatHappened: "Vad som hände",
     encryptionLabel: "Kryptering",
     encryption:
@@ -680,103 +820,7 @@ export const sv: Messages = {
     declinedTitle: "Du tackade nej till hemligheten",
     showAgain: "Visa hemligheten igen",
   },
-  server: {
-    heading: "Vad vår server har just nu",
-    seesLabel: "Ser",
-    holdsLabel: "Har",
-    passedOnLabel: "Har skickat vidare",
-    fileDataLabel: (kind: Kind) => items[kind].label,
-    logsLabel: "Loggar",
-    afterwardsLabel: "Efteråt",
-    seesSender:
-      "Din IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får, och samma sak för varje mottagare när de öppnar sin länk.",
-    seesRecipient:
-      "Din IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",
-    senderHolds: ({ online, links, connected, relay, emailed, sending, mailed, kind }) => {
-      if (!online) {
-        return mailed
-          ? "Bara antalet mejl den skickade åt dig, i förvrängd form, i upp till en timme, när den har märkt att anslutningen har stängts. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under en överföring håller den först kvar överföringens plats i upp till 30 sekunder, inom den minuten, så att den här sidan kan ta tillbaka den när den ansluter igen."
-          : "Ingenting, när den har märkt att anslutningen har stängts. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under en överföring håller den först kvar överföringens plats i upp till 30 sekunder, inom den minuten, så att den här sidan kan ta tillbaka den när den ansluter igen.";
-      }
-      const choice = relay
-        ? "Ditt val att tillåta vårt relä."
-        : "Ditt val att inte tillåta vårt relä.";
-      const counts = mailed
-        ? " Antalet mejl den skickade åt dig, i förvrängd form, i upp till en timme."
-        : "";
-      if (links === 0) {
-        return `Inga länkar ännu. ${choice}${counts}`;
-      }
-      const ids = links === 1 ? "ID:t för din länk" : `ID:na för dina ${links} länkar`;
-      const email =
-        emailed === 0
-          ? ""
-          : emailed === 1
-            ? " För länken den mejlar: mottagarens e-postadress och koderna som skickas dit."
-            : ` För de ${emailed} länkar den mejlar: mottagarnas e-postadresser och koderna som skickas dit.`;
-      const key =
-        sending === 0
-          ? `${ids}, aldrig ${items[kind].unlocks}.${email}`
-          : `${ids}.${email} Medan den skickar ett mejl också ${items[kind].key}, och ditt namn.`;
-      const held = `${key} ${choice}${counts}`;
-      if (connected === 0) {
-        return held;
-      }
-      const who =
-        connected === 1 ? "1 mottagare är ansluten" : `${connected} mottagare är anslutna`;
-      return `${held} ${who} just nu.`;
-    },
-    recipientHolds: (tie: Tie, emailed: boolean, kind: Kind) =>
-      (emailed
-        ? {
-            paired: `ID:t för din länk, din e-postadress, att den här fliken har angett rätt kod och att den här sidan är ansluten till avsändaren. Servern hade ${items[kind].unlocks} bara medan den mejlade länken till dig.`,
-            unpaired:
-              "Din e-postadress, som avsändaren angav för den här länken, den senaste koden den mejlade dig och om den här fliken har angett den. Bara avsändarens sida kan hålla kvar dem där.",
-            closed:
-              "Ingenting om den här sidan, när servern har märkt att anslutningen har stängts, utom om den här fliken har angett rätt kod. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under överföringen håller den först kvar den här sidans plats i överföringen i upp till 30 sekunder, inom den minuten, så att sidan kan ta tillbaka den när den ansluter igen. Bara avsändarens sida kan hålla kvar det, din länks ID och din e-postadress där.",
-          }
-        : {
-            paired: `ID:t för din länk, aldrig ${items[kind].unlocks}, och att den här sidan är ansluten till avsändaren.`,
-            unpaired:
-              "Ingenting som knyter den här sidan till din länk. Bara avsändarens sida kan hålla kvar din länks ID där.",
-            closed:
-              "Ingenting om den här sidan, när servern har märkt att anslutningen har stängts. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under överföringen håller den först kvar den här sidans plats i överföringen i upp till 30 sekunder, inom den minuten, så att sidan kan ta tillbaka den när den ansluter igen. Bara avsändarens sida kan hålla kvar din länks ID där.",
-          })[tie],
-    passedOn: (messages: number, size: string, emailed: boolean) =>
-      messages === 0
-        ? "Inget ännu."
-        : `${messages} ${messages === 1 ? "uppkopplingsmeddelande" : "uppkopplingsmeddelanden"} (${size}), alla krypterade så att servern inte kan läsa dem${emailed ? ", utom för en länk som den har mejlat och därför haft nyckeln till" : ""}.`,
-    fileData: (kind: Kind) => `Inget. ${items[kind].The} går direkt mellan webbläsarna.`,
-    fileDataRelayed: (kind: Kind) =>
-      `Inget. Webbläsarna kunde inte ansluta direkt, så ${items[kind].the} går ${items[kind].encrypted} via vårt relä i stället.`,
-    relaySeesLabel: "Vårt relä ser",
-    relaySees: (kind: Kind) =>
-      `Båda webbläsarnas IP-adresser och ${items[kind].seen}. Reläet kan inte låsa upp ${items[kind].the}.`,
-    relayLogsLabel: "Vårt relä loggar",
-    relayLogs: (kind: Kind) =>
-      `Ingen logg över trafiken i vanliga fall. Bara när vi felsöker eller stoppar missbruk: anslutningstider, IP-adresser och hur mycket data som passerade, i högst 7 dagar. Aldrig namn, nycklar eller ${items[kind].data}. Medan det förnyar sitt certifikat loggar det också adresserna som når det på port 80, aldrig webbläsarnas, i ungefär fem veckor.`,
-    relayKeepsLabel: "Vårt relä sparar",
-    relayKeeps: (kind: Kind) =>
-      `Ingenting av ${items[kind].the} när ${items[kind].it} har passerat. Loggrader som sparas när vi felsöker eller stoppar missbruk raderas inom 7 dagar.`,
-    senderAfterwards: (online: boolean, mailed: boolean) =>
-      `${
-        online
-          ? "När du stänger den här fliken glömmer servern dina länkar, inom högst en minut. Loggraderna finns kvar."
-          : "Dina länkar försvinner från servern inom en minut efter att anslutningen stängdes. Loggraderna finns kvar."
-      }${mailed ? " Det gör också antalet mejl den skickade åt dig, i förvrängd form, i upp till en timme." : ""}`,
-    afterwardsRecipient: (emailed: boolean) =>
-      emailed
-        ? "När den här sidan kopplas från släpper servern det den har om sidan, inom högst en minut, utom det som kodkontrollen behöver: din e-postadress och om den här fliken har angett rätt kod finns kvar tills avsändarens sida stängs, och antalet koder som skickats till din adress och antalet koder som din IP-adress har bett om, båda i förvrängd form, i upp till en timme. Loggraderna finns kvar."
-        : "När den här sidan kopplas från släpper servern det den har om sidan, inom högst en minut. Loggraderna finns kvar.",
-    logs: (kind: Kind) =>
-      `Vad som hände, till exempel att en länk öppnades, med ${new Intl.ListFormat("sv", {
-        type: "conjunction",
-      }).format(
-        Object.entries(logFields)
-          .filter(([field]) => field !== "event")
-          .map(([, [what]]) => what),
-      )}. Aldrig namn, nycklar, ${items[kind].data} eller IP-adresser.`,
-  },
+  traces,
   footer: {
     file: "Skicka en fil",
     label: "Webbplats",
@@ -1279,6 +1323,10 @@ export const sv: Messages = {
               "",
               "När en mottagares anslutning öppnas: ett slumpmässigt värde från vår server för den länken, bara i den här flikens minne, så att sidan kan ta tillbaka sin plats om dess anslutning till vår server bryts. Ett nytt ersätter det varje gång sidan tar tillbaka sin plats. Det finns kvar tills sidans nästa anslutning till vår server använder det, länken ansluter igen eller du stänger fliken.",
             ],
+            [
+              "",
+              "En logg över spåren efter den här överföringen, under Spår: när den här sidan såg varje händelse, vilken del som har vad, de första 6 tecknen i varje länk-ID och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i den här flikens minne och skickas aldrig, tills du lämnar webbplatsen, stänger fliken eller laddar om den.",
+            ],
           ],
         },
         channel: {
@@ -1472,7 +1520,15 @@ export const sv: Messages = {
             ],
             [
               "",
+              "En logg över spåren efter den här överföringen, under Spår: när deras sida såg varje händelse, vilken del som har vad, de första 6 tecknen i länk-ID:t och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i sidans minne och skickas aldrig, tills de lämnar webbplatsen, stänger fliken eller laddar om den.",
+            ],
+            [
+              "",
               "Flikens ikon som den senast var, en grön prick medan överföringen pågick, en bock när den kommit fram eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, länken också, tills historiken rensas. I vårt test på en dator sparade Chrome den senaste ikonen, Firefox och Safari verkade bara spara den som en sida öppnades med, och ett privat fönster i dem sparade ingen. Andra webbläsare har inte testats. Om de valt Ljust eller Mörkt under Tema visar en logga som sparas där det valet, som webbläsaren ändå sparar.",
+            ],
+            [
+              "",
+              "Om de tillåter notiser: en notis när filen eller hemligheten är redo, när kontrollnumret är klart, när den har kommit fram och när den inte togs emot, som deras enhets notislista visar och sparar. Den säger bara vilket av dessa tillfällen det är och om det är en fil eller en hemlighet, aldrig ett filnamn, en persons namn, en länk eller en nyckel.",
             ],
             ["", "Deras val av tema och språk, i webbläsarens lokala lagring, tills de rensas."],
           ],

@@ -251,41 +251,53 @@ export function App({
     <div class="flex min-h-dvh flex-col has-[[data-bottom-bar]:not([hidden]_*)]:pb-24 has-[[data-page-bar]:not([hidden]_*)]:has-[[data-pill]]:pb-40 has-[[data-page-bar]:not([hidden]_*)]:[&_[data-pill-wrap]]:bottom-20">
       <LocalhostBar />
       <Header current={route} open={{ send: sendOpen, secret: secretOpen }} />
-      <div class="flex-1">
-        {route === "landing" && <LandingPage />}
-        {/* The privacy page uses no crypto, so it opens even without a secure connection. */}
-        {route === "privacy" && <PrivacyPage />}
-        {route === "how" && <HowPage path={path} />}
-        {(route === "about" || route === "terms" || route === "security") && (
-          <InfoPage page={route} />
-        )}
-        {route === "notFound" && <NotFoundPage />}
-        {insecureShown && <InsecurePage />}
-        {secure && kept.current.has("receive") && (
-          <div id="receive" hidden={route !== "receive"}>
-            <ReceivePage onStatus={setReceiveStatus} preview={preview?.receive} />
-          </div>
-        )}
-        {secure && kept.current.has("send") && (
-          <div hidden={route !== "send"} inert={prerender !== undefined}>
-            <SendPage
-              kind="file"
-              onStatus={setSendStatus}
-              preview={preview?.send}
-              shown={route === "send"}
-            />
-          </div>
-        )}
-        {secure && kept.current.has("secret") && (
-          <div hidden={route !== "secret"} inert={prerender !== undefined}>
-            <SendPage
-              kind="text"
-              onStatus={setSecretStatus}
-              preview={preview?.secret}
-              shown={route === "secret"}
-            />
-          </div>
-        )}
+      {/* From lg, an open traces panel (TraceDrawer) sits in the slot beside the pages, in the
+          page's flow above the footer; the pages keep centred in what is left. */}
+      <div class="flex-1 lg:flex">
+        <div class="min-w-0 lg:flex-1">
+          {route === "landing" && <LandingPage />}
+          {/* The privacy page uses no crypto, so it opens even without a secure connection. */}
+          {route === "privacy" && <PrivacyPage />}
+          {route === "how" && <HowPage path={path} />}
+          {(route === "about" || route === "terms" || route === "security") && (
+            <InfoPage page={route} />
+          )}
+          {route === "notFound" && <NotFoundPage />}
+          {insecureShown && <InsecurePage />}
+          {secure && kept.current.has("receive") && (
+            <div id="receive" hidden={route !== "receive"}>
+              <ReceivePage
+                onStatus={setReceiveStatus}
+                preview={preview?.receive}
+                shown={route === "receive"}
+              />
+            </div>
+          )}
+          {secure && kept.current.has("send") && (
+            <div hidden={route !== "send"} inert={prerender !== undefined}>
+              <SendPage
+                kind="file"
+                onStatus={setSendStatus}
+                preview={preview?.send}
+                shown={route === "send"}
+              />
+            </div>
+          )}
+          {secure && kept.current.has("secret") && (
+            <div hidden={route !== "secret"} inert={prerender !== undefined}>
+              <SendPage
+                kind="text"
+                onStatus={setSecretStatus}
+                preview={preview?.secret}
+                shown={route === "secret"}
+              />
+            </div>
+          )}
+        </div>
+        <div
+          id="traces-slot"
+          class="hidden overflow-x-clip lg:w-[24rem] lg:flex-none lg:has-[>*]:block"
+        />
       </div>
       <Footer theme={theme} onTheme={chooseTheme} />
       <div

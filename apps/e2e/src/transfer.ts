@@ -9,6 +9,7 @@ import {
   test as harness,
   type Leaks,
   type Observed,
+  openTraces,
   recipientRow,
 } from "./fixtures.ts";
 import { base32Token, type CanaryFile, type SeededRandom } from "./leaks/canary.ts";
@@ -100,9 +101,8 @@ export async function openSender(
     mimeType: file.mime,
     buffer: file.bytes,
   });
-  await page.getByRole("button", { name: "Technical details" }).click();
+  await page.getByRole("button", { name: /^Traces/ }).click();
   await expect(page.getByText(sha256Hex(file.bytes))).toBeVisible();
-  // The drawer covers the page until it is closed.
   await page.getByRole("button", { name: "Close" }).click();
   return page;
 }
@@ -152,13 +152,13 @@ export async function receive(
   await expect(page.getByText(sizeText, { exact: true })).toBeVisible();
   await page.getByText("Technical details").click();
   await expect(page.getByText(`${file.size.toLocaleString("en-US")} bytes`)).toBeVisible();
-  await expect(page.getByRole("region", { name: "What our server has right now" })).toContainText(
-    "this page is connected to the sender",
+  await expect(await openTraces(page)).toContainText(
+    /Server, Memory, [^:]*: Paired this page with the sender's on link ID/,
   );
   if (sender) {
-    await expect(
-      sender.getByRole("region", { name: "What our server has right now", includeHidden: true }),
-    ).toContainText(/[1-9] recipients? connected right now/);
+    await expect(await openTraces(sender)).toContainText(
+      /Server, Memory, [^:]*: Paired a recipient's page with link ID/,
+    );
   }
   const bytes = await download(page, file);
   // The typed name is unverified, so it stays on the offer screen only.

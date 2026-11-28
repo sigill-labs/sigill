@@ -133,6 +133,28 @@
   html:has(dialog:modal) {
     overflow: hidden;
   }
+  /* The traces sheet below lg (TraceDrawer) covers the page but isn't modal, so Radix doesn't lock
+     scrolling; this does, without the <style> Radix would inject and the CSP blocks (0005). */
+  @media (max-width: 63.99rem) {
+    html:has([data-slot="sheet-content"][data-state="open"]) {
+      overflow: hidden;
+    }
+  }
+}
+
+/* The bottom bar's height: its row's min-h-[3.95rem] and its py-1.5. The traces panel ends above it. */
+:root {
+  --bar-height: 4.7rem;
+}
+
+/* A page's traces panel (TraceDrawer) on a wide screen is in App's #traces-slot, beside the pages
+   in the page's flow, so the pages centre in what is left. The bottom bar is fixed and full width,
+   so its row moves left by half the panel's width to stay under the page's column. Outside the
+   layers, so it wins over the utilities. */
+@media (min-width: 64rem) {
+  html:has(#traces-slot > *) [data-bar-row] {
+    translate: -12rem 0;
+  }
 }
 
 @theme {

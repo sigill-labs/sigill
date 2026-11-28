@@ -4,7 +4,9 @@ import {
   displayName,
   etaTracker,
   formatBytes,
+  formatClock,
   formatProgress,
+  formatSpan,
   formatTimeLeft,
   toHex,
 } from "./format.ts";
@@ -64,4 +66,22 @@ test("formatTimeLeft rounds to steps that don't flicker", () => {
   assert.equal(formatTimeLeft(56, "en"), "About 1 minute left");
   assert.equal(formatTimeLeft(150, "sv"), "Ungefär 3 minuter kvar");
   assert.equal(formatTimeLeft(7200, "sv"), "Ungefär 2 timmar kvar");
+});
+
+test("formatClock writes local 24-hour time with seconds", () => {
+  assert.equal(formatClock(new Date(2026, 10, 28, 9, 5, 7).getTime()), "09:05:07");
+  assert.equal(formatClock(new Date(2026, 10, 28, 23, 59, 59, 999).getTime()), "23:59:59");
+  assert.equal(formatClock(new Date(2026, 10, 28, 0, 0, 0).getTime()), "00:00:00");
+});
+
+test("formatSpan gives whole seconds, then minutes, then hours and minutes", () => {
+  assert.equal(formatSpan(0), "under 1 s");
+  assert.equal(formatSpan(999), "under 1 s");
+  assert.equal(formatSpan(1000), "1 s");
+  assert.equal(formatSpan(59_999), "59 s");
+  assert.equal(formatSpan(60_000), "1 min");
+  assert.equal(formatSpan(4 * 60_000 + 59_000), "4 min");
+  assert.equal(formatSpan(60 * 60_000), "1 h");
+  assert.equal(formatSpan(65 * 60_000 + 30_000), "1 h 5 min");
+  assert.equal(formatSpan(26 * 60 * 60_000), "26 h");
 });
