@@ -5,7 +5,7 @@
 // Wiring (see lib/peer.ts and lib/sender-state.ts):
 // - On mount, connect to the signaling server and host every link ID on the
 //   list, with whether recipients may use our TURN relay; re-host the full
-//   list whenever the hosted links change (an add, a remove, a link the check locked, or a
+//   list whenever the hosted links change (an add, a remove, Send another, a link the check locked, or a
 //   link replaced after a refused email), every change of the relay checkbox and
 //   every reconnect, and again REHOST_AFTER_MS after `already-hosted` while
 //   the server still holds the old socket. When the socket drops, recipients
@@ -136,6 +136,10 @@ type Hash =
   | { status: "ready"; hex: string }
   | { status: "failed" };
 
+/** The kinds of link the sender can add, in the toggle's order. BankID joins as a third. */
+const LINK_KINDS = ["plain", "check"] as const;
+type LinkKind = (typeof LINK_KINDS)[number];
+
 /** What the page's status region says, kept as data so its text follows a language switch. */
 type Cue = { kind: "file"; name: string; size: number } | { kind: "links" } | null;
 
@@ -170,7 +174,7 @@ const fieldError = "m-0 text-destructive";
 const hint = "text-[0.9rem] text-muted-foreground";
 const stepLabel = "m-0 mb-1 text-[0.85rem] font-medium text-muted-foreground";
 const GLIDE_MS = 450;
-/** On the last open step: tall enough to the page's end that a glide always brings its top to its scroll margin. Step 3 takes it over from step 2, so the page doesn't shrink and jump when the first link opens step 3. */
+/** On the last open step: tall enough to the page's end that a glide always brings its top to its scroll margin. */
 const lastStep = "min-h-[calc(100dvh-4rem)]";
 
 /** Scrolls the window to `el` with an ease-in-out curve; stops if the user scrolls, jumps if they prefer less motion. */
@@ -223,6 +227,8 @@ export type SendPreview = {
   /** The server sends mail, so the form offers the email choice. */
   mail?: boolean;
   useEmail?: boolean;
+  /** The link's verification. Defaults to a safety number when email is chosen, else plain. */
+  linkKind?: LinkKind;
   mailed?: boolean;
   viaRelay?: boolean;
   from?: string;
@@ -261,6 +267,7 @@ export function SendPage({
   const [mail, setMail] = useState(false);
   // Emailing a link is opt-in: until the sender ticks it, there is no email field.
   const [useEmail, setUseEmail] = useState(false);
+  const [linkKind, setLinkKind] = useState<LinkKind>("plain");
   // Each open check's number, by link ID: on screen only, gone with its connection.
   const [checks, setChecks] = useState<Readonly<Record<string, CheckView>>>({});
   const [emailError, setEmailError] = useState(false);
@@ -548,7 +555,7 @@ export function SendPage({
     for (const effect of next.effects) {
       runEffect(effect);
     }
-    // Adding, removing, a check locking a link or a refused email replacing a link
+    // Adding, removing, Send another, a check locking a link or a refused email replacing a link
     // changes what to host.
     if (hostedLinks(next.state).join() !== hosted) {
       host();
@@ -771,6 +778,7 @@ export function SendPage({
     setViaRelay(preview.viaRelay ?? false);
     setMail(preview.mail ?? false);
     setUseEmail(preview.useEmail ?? false);
+    setLinkKind(preview.linkKind ?? (preview.useEmail ? "check" : "plain"));
     setMailed(preview.mailed ?? false);
     setFrom(preview.from ?? "");
     setFileError(preview.fileError ?? "");
@@ -874,8 +882,7 @@ export function SendPage({
     }
     const first = sender.recipients.length === 0;
     const link = createLink(location.origin);
-    const submitter = (event as SubmitEvent).submitter;
-    const check = submitter instanceof HTMLButtonElement ? submitter.value === "check" : !!email;
+    const check = linkKind === "check";
     dispatchRef.current({ type: "add", link, name, check, ...(email && { email }) });
     // After `add`, so the server already hosts the link this names.
     if (email && findRecipient(senderRef.current, link.linkId)) {
@@ -915,6 +922,31 @@ export function SendPage({
     });
   };
 
+  // Offered once every link has delivered, so nothing on its way is cut off. Like Remove on
+  // every card: each link stops being hosted. The name stays, now unlocked.
+  const onSendAnother = () => {
+    dispatchRef.current({ type: "reset" });
+    setChecks({});
+    prepare(undefined);
+    setFileError("");
+    setNameError("");
+    setContinued(false);
+    setCue(null);
+    const box = document.getElementById("secret-text");
+    if (text && box instanceof HTMLTextAreaElement) {
+      box.value = "";
+      setTextLength(0);
+    }
+    // The frame comes after the render that brings back the picker and drops steps 2 and 3.
+    requestAnimationFrame(() => {
+      const top = document.getElementById(id("choose"));
+      if (top) {
+        glideTo(top);
+      }
+      document.getElementById(text ? "secret-text" : "file")?.focus({ preventScroll: true });
+    });
+  };
+
   const hasRecipients = sender.recipients.length > 0;
   // A label while the file can still be changed, plain text once the list locks it.
   const FileRow = hasRecipients ? "div" : "label";
@@ -928,6 +960,9 @@ export function SendPage({
   const unfinished = sender.recipients.some((r) => r.status !== "delivered");
   const delivered = sender.recipients.filter((r) => r.status === "delivered").length;
   const allDone = hasRecipients && !unfinished;
+  const someDelivered = delivered > 0;
+  // Some link has left "waiting": a recipient opened it, or it moved on from there.
+  const started = sender.recipients.some((r) => r.status !== "waiting");
   // Every link counts the same: a delivered one as 1, one on its way as the part that has gone.
   const progress =
     sender.recipients.reduce(
@@ -977,6 +1012,15 @@ export function SendPage({
       }
       document.getElementById(id("recipient-name"))?.focus({ preventScroll: true });
     });
+  };
+
+  const goToLinks = () => {
+    const target = document.getElementById(id("links"));
+    if (target) {
+      glideTo(target);
+      // Like step 1's Continue: on to the first control of the next step, the first card's button.
+      target.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    }
   };
 
   return (
@@ -1177,17 +1221,13 @@ export function SendPage({
         {(file || text) && (
           // One line that is always there: the file's status, then the lock's hint. Both share a
           // grid cell and the hidden one keeps its space, so neither moves the page (see SwapLabel).
-          <p class={`mt-2 mb-0 grid ${hint}`}>
+          // Once a link has delivered, Send another file in the bottom bar is the way out instead.
+          // Its first line sits in the gap above step 2, so the gap is as tall as step 2's above step 3.
+          <p class={`mt-2 -mb-[calc(0.5rem+1lh)] grid ${hint}`}>
             <span
-              class={`col-start-1 row-start-1 ${hasRecipients && !fileStatus ? "" : "invisible"}`}
+              class={`col-start-1 row-start-1 ${hasRecipients && !fileStatus && !someDelivered ? "" : "invisible"}`}
             >
-              {
-                (text ? t.secret : t.send)[
-                  sender.recipients.some((r) => r.status === "delivered")
-                    ? "lockedDelivered"
-                    : "locked"
-                ]
-              }
+              {(text ? t.secret : t.send).locked}
             </span>
             {fileStatus === "preparing" && (
               <span class="col-start-1 row-start-1" role="status">
@@ -1206,7 +1246,7 @@ export function SendPage({
       {continued && (
         <section
           id={id("recipients")}
-          class={`mt-10 scroll-mt-16 border-t border-border pt-8 ${hasRecipients ? "" : lastStep}`}
+          class={`mt-12 scroll-mt-16 border-t border-border pt-8 ${hasRecipients ? "" : lastStep}`}
           aria-labelledby={id("recipients-heading")}
         >
           <p class={stepLabel}>{t.send.step(2)}</p>
@@ -1225,6 +1265,34 @@ export function SendPage({
             }}
             noValidate
           >
+            <fieldset
+              class="m-0 flex basis-full flex-col gap-2 border-0 p-0"
+              disabled={!file || full}
+            >
+              <legend class="mb-2 p-0 text-sm font-medium">{t.send.linkKind.label}</legend>
+              {/* Native radios, so arrows move the choice; each lies unseen over its label, which wears the look of a toggle. */}
+              <div class="flex w-fit max-w-full gap-0.5 rounded-xl border border-border p-0.5">
+                {LINK_KINDS.map((kind) => (
+                  <label
+                    key={kind}
+                    class={`${buttonVariants({ variant: linkKind === kind ? "secondary" : "ghost", size: "sm" })} relative has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50`}
+                  >
+                    <input
+                      type="radio"
+                      name="kind"
+                      value={kind}
+                      class="absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                      checked={linkKind === kind}
+                      onChange={() => setLinkKind(kind)}
+                      aria-describedby={
+                        kind === "check" && linkKind === "check" ? id("check-hint") : undefined
+                      }
+                    />
+                    {t.send.linkKind[kind]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <div class={`basis-full ${field}`}>
               <Label htmlFor={id("recipient-name")}>{t.send.recipientLabel}</Label>
               <Input
@@ -1261,6 +1329,10 @@ export function SendPage({
                     onChange={(event) => {
                       const checked = event.currentTarget.checked;
                       setUseEmail(checked);
+                      // An emailed link passes our mail service, so it starts with the safety number.
+                      if (checked) {
+                        setLinkKind("check");
+                      }
                       setEmailError(false);
                     }}
                   />
@@ -1303,39 +1375,18 @@ export function SendPage({
               </div>
             )}
             <div class="flex basis-full flex-wrap gap-2">
-              {mail && useEmail ? (
-                <>
-                  <Button
-                    type="submit"
-                    value="check"
-                    disabled={!file || full}
-                    aria-describedby={file && !full ? id("check-hint") : undefined}
-                  >
-                    {t.send.addEmailCheck}
-                  </Button>
-                  <Button type="submit" variant="outline" value="plain" disabled={!file || full}>
-                    {t.send.addEmail}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button type="submit" value="plain" disabled={!file || full}>
-                    {t.send.add}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    value="check"
-                    disabled={!file || full}
-                    aria-describedby={file && !full ? id("check-hint") : undefined}
-                  >
-                    {t.send.addCheck}
-                  </Button>
-                </>
-              )}
+              <Button type="submit" disabled={!file || full}>
+                {mail && useEmail
+                  ? linkKind === "check"
+                    ? t.send.addEmailCheck
+                    : t.send.addEmail
+                  : linkKind === "check"
+                    ? t.send.addCheck
+                    : t.send.add}
+              </Button>
             </div>
           </form>
-          {file && !full && (
+          {file && !full && linkKind === "check" && (
             <p id={id("check-hint")} class={`mb-0 ${hint}`}>
               {t.send.check.hint(text ? "secret" : "file")}
             </p>
@@ -1373,6 +1424,15 @@ export function SendPage({
               </div>
             </div>
           </details>
+          {/* Leads to the links until the first one moves: from then on step 3 has the sender's attention. */}
+          <Button
+            type="button"
+            className="mt-6"
+            disabled={!hasRecipients || started}
+            onClick={goToLinks}
+          >
+            {t.send.continue}
+          </Button>
         </section>
       )}
 
@@ -1386,6 +1446,7 @@ export function SendPage({
           <h2 id={id("links-heading")} class="m-0 text-[1.75rem] font-bold">
             {t.send.linksHeading}
           </h2>
+          <p class={lede}>{t.send.linksLede}</p>
           <RecipientList
             recipients={sender.recipients}
             fileSize={file?.size ?? 0}
@@ -1470,10 +1531,10 @@ export function SendPage({
               </span>
             </span>
           </p>
-          {/* Once the button was offered its place stays: the button and the browser's answer share
-              one grid cell, the hidden one keeping its space, so the bar's text wraps the same and
-              the bar keeps its height when the button goes (see SwapLabel). */}
-          {(canAskToNotify || notifyAnswer) && (
+          {/* Once there is a link, Notify me while sending, the browser's answer and Send another
+              file once done share one grid cell, the hidden ones keeping their space, so the bar's
+              text wraps the same and the bar keeps its height as they swap (see SwapLabel). */}
+          {(hasRecipients || canAskToNotify || notifyAnswer) && (
             <div class="grid flex-none items-center justify-items-end">
               <Button
                 id={id("notify-me")}
@@ -1500,10 +1561,21 @@ export function SendPage({
                   role="status"
                   // As wide as the button, which keeps its place, so the answer wraps instead of
                   // taking width from the bar's text.
-                  class={`col-start-1 row-start-1 m-0 w-0 min-w-full text-right text-[0.8rem] leading-tight ${canAskToNotify ? "invisible" : ""} ${unfinished ? "text-muted-foreground" : ""}`}
+                  class={`col-start-1 row-start-1 m-0 w-0 min-w-full text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
                 >
                   {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
                 </p>
+              )}
+              {hasRecipients && (
+                // Only once every link has delivered, so it never cuts a transfer off.
+                <Button
+                  type="button"
+                  size="sm"
+                  className={`col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60 ${allDone ? "" : "invisible"}`}
+                  onClick={onSendAnother}
+                >
+                  {(text ? t.secret : t.send).sendAnother}
+                </Button>
               )}
             </div>
           )}

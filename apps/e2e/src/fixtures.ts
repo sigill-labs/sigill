@@ -513,7 +513,7 @@ export async function continueToLinks(page: Page): Promise<void> {
 }
 
 /** Expects the glide to the step that `heading` heads to have ended with the step's top at its scroll margin, and the heading just under the header. */
-async function expectStepAtTop(heading: Locator): Promise<void> {
+export async function expectStepAtTop(heading: Locator): Promise<void> {
   await expect
     .poll(() =>
       heading.evaluate((element) => {
