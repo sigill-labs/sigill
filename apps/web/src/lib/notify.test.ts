@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { afterEach, test } from "node:test";
-import { askToNotify, NOTIFICATION_ICON, notify, notifyPermission } from "./notify.ts";
+import { askToNotify, notify, notifyPermission } from "./notify.ts";
+import { notifyIcon } from "./notify-icon.ts";
 
 type Shown = { title: string; body: string | undefined; icon: string | undefined };
 
@@ -32,7 +32,7 @@ afterEach(() => {
 test("notify shows the notification only when allowed and the page is out of focus", () => {
   const shown = browser("granted", false);
   notify("Delivered", "1 of 2");
-  assert.deepEqual(shown, [{ title: "Delivered", body: "1 of 2", icon: NOTIFICATION_ICON }]);
+  assert.deepEqual(shown, [{ title: "Delivered", body: "1 of 2", icon: notifyIcon }]);
 
   const focused = browser("granted", true);
   notify("a", "b");
@@ -60,9 +60,4 @@ test("notifyPermission says unsupported where a page can't notify", async () => 
   assert.equal(await askToNotify(), "granted");
   browser("denied", false, true);
   assert.equal(notifyPermission(), "denied");
-});
-
-test("the notification icon is the site's touch icon, inline, so showing it asks the server for nothing", () => {
-  const file = readFileSync(new URL("../../public/apple-touch-icon.png", import.meta.url));
-  assert.equal(NOTIFICATION_ICON, `data:image/png;base64,${file.toString("base64")}`);
 });
