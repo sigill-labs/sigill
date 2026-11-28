@@ -237,7 +237,8 @@ test("a pasted text over 10,000 characters stays whole and can't be shared until
     "12,000 of 10,000 characters. Shorten the secret to share it. Up to 10,000 characters.",
   );
   await expect(add).toBeDisabled();
-  await expect(sender.getByRole("button", { name: "Continue" })).toBeDisabled();
+  // Step 1's Continue; step 2's comes after it.
+  await expect(sender.getByRole("button", { name: "Continue" }).first()).toBeDisabled();
   await expect(sender.locator("#secret-recipient-name")).toBeDisabled();
   await expect(sender.locator("#secret-recipient-hint")).toHaveText(
     "Shorten the secret to share it.",

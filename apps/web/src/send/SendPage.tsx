@@ -170,7 +170,7 @@ const fieldError = "m-0 text-destructive";
 const hint = "text-[0.9rem] text-muted-foreground";
 const stepLabel = "m-0 mb-1 text-[0.85rem] font-medium text-muted-foreground";
 const GLIDE_MS = 450;
-/** On the last open step: tall enough to the page's end that a glide always brings its top to its scroll margin. Step 3 takes it over from step 2, so the page doesn't shrink and jump when the first link opens step 3. */
+/** On the last open step: tall enough to the page's end that a glide always brings its top to its scroll margin. */
 const lastStep = "min-h-[calc(100dvh-4rem)]";
 
 /** Scrolls the window to `el` with an ease-in-out curve; stops if the user scrolls, jumps if they prefer less motion. */
@@ -1004,6 +1004,15 @@ export function SendPage({
     });
   };
 
+  const goToLinks = () => {
+    const target = document.getElementById(id("links"));
+    if (target) {
+      glideTo(target);
+      // Like step 1's Continue: on to the first control of the next step, the first card's button.
+      target.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+    }
+  };
+
   return (
     <Page
       full
@@ -1398,6 +1407,9 @@ export function SendPage({
               </div>
             </div>
           </details>
+          <Button type="button" className="mt-6" disabled={!hasRecipients} onClick={goToLinks}>
+            {t.send.continue}
+          </Button>
         </section>
       )}
 

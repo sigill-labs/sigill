@@ -11,6 +11,7 @@ import {
   continueToLinks,
   delivered,
   expect,
+  expectStepAtTop,
   fakeSavePicker,
   test as harness,
   type Leaks,
@@ -440,16 +441,21 @@ test("a declined offer shows as declined, and the link can be reopened", async (
 // No one joins here, so the sender receives no signaling and the demo fixture's frame checks don't apply.
 harness("a held Enter on Remove removes only one recipient", async ({ actor, leaks, canary }) => {
   const demo: Demo = { open: async (name) => (await actor(name)).page };
-  // A tall window, where the page ends soon after step 2 unless it leaves room for the glide that
-  // continueToLinks checks.
+  // A tall window, where the page ends soon after the last step unless that step leaves room for
+  // the glides (continueToLinks checks step 2's, and step 3's is below).
   const sender = await openSender(demo, makeFile(leaks, canary, 10), "", (page) =>
     page.setViewportSize({ width: 1280, height: 1600 }),
   );
   const anna = makeName(leaks, canary, "Anna");
   const erik = makeName(leaks, canary, "Erik");
-  const proceed = sender.getByRole("button", { name: "Continue" });
+  // Step 1's Continue comes first; step 2 has its own.
+  const proceed = sender.getByRole("button", { name: "Continue" }).first();
+  const toLinks = sender
+    .getByRole("region", { name: "Add recipients" })
+    .getByRole("button", { name: "Continue" });
   const who = sender.getByLabel("Who is it for?");
   const links = sender.getByRole("heading", { name: "Share the links" });
+  await expect(toLinks).toBeDisabled();
   // Where the name field sits in the window once filling has scrolled it into view. Step 1 gets
   // shorter when the list locks the file, so scrollY changes, but scroll anchoring keeps the view.
   const at = async () => (await who.boundingBox())?.y;
@@ -468,6 +474,10 @@ harness("a held Enter on Remove removes only one recipient", async ({ actor, lea
   await expect(barText(sender, "Step 2 of 3: Add recipients")).toHaveCount(0);
   await expect(who).toBeFocused();
   expect(await at()).toBe(before);
+  // Step 2's Continue glides to step 3 and moves on to its first button.
+  await toLinks.click();
+  await expectStepAtTop(links);
+  await expect(sender.getByRole("button", { name: `Copy link for ${anna}` })).toBeFocused();
   await addRecipient(leaks, sender, erik);
 
   await sender.getByRole("button", { name: `Remove ${anna}` }).focus();
@@ -485,6 +495,7 @@ harness("a held Enter on Remove removes only one recipient", async ({ actor, lea
   await sender.keyboard.up("Enter");
   await expect(sender.getByText("Enter a name.")).toHaveCount(0);
   await expect(proceed).toBeEnabled();
+  await expect(toLinks).toBeDisabled();
   await expect(links).toHaveCount(0);
 });
 
