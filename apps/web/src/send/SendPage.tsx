@@ -136,11 +136,11 @@ type Hash =
   | { status: "ready"; hex: string }
   | { status: "failed" };
 
-/** What the page's status region says, kept as data so its text follows a language switch. */
 /** The kinds of link the sender can add, in the toggle's order. BankID joins as a third. */
 const LINK_KINDS = ["plain", "check"] as const;
 type LinkKind = (typeof LINK_KINDS)[number];
 
+/** What the page's status region says, kept as data so its text follows a language switch. */
 type Cue = { kind: "file"; name: string; size: number } | { kind: "links" } | null;
 
 type Connection = {
@@ -227,6 +227,8 @@ export type SendPreview = {
   /** The server sends mail, so the form offers the email choice. */
   mail?: boolean;
   useEmail?: boolean;
+  /** The link's verification. Defaults to a safety number when email is chosen, else plain. */
+  linkKind?: LinkKind;
   mailed?: boolean;
   viaRelay?: boolean;
   from?: string;
@@ -776,6 +778,7 @@ export function SendPage({
     setViaRelay(preview.viaRelay ?? false);
     setMail(preview.mail ?? false);
     setUseEmail(preview.useEmail ?? false);
+    setLinkKind(preview.linkKind ?? (preview.useEmail ? "check" : "plain"));
     setMailed(preview.mailed ?? false);
     setFrom(preview.from ?? "");
     setFileError(preview.fileError ?? "");

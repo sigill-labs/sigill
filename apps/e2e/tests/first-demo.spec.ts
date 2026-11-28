@@ -1858,7 +1858,7 @@ async function addEmailed(
   await sender.getByLabel("Who is it for?").fill(name);
   // Emailing is opt-in; the choice stays ticked for the next recipient.
   await sender.getByLabel("Email the link for me (less private)").check();
-  // With email on, the safety number is the default, so Enter picks it.
+  // Ticking email preselects the safety number, so the Add button and Enter use it.
   await expect(
     sender
       .locator("form")
