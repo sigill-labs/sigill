@@ -48,7 +48,9 @@ export function notify(title: string, body: string): void {
     return;
   }
   try {
-    const notification = new N(title, { body });
+    // Our own logo, from our own origin. On macOS Chrome keeps its icon on the left
+    // and shows this one beside the text; elsewhere it takes the browser icon's place.
+    const notification = new N(title, { body, icon: "/apple-touch-icon.png" });
     notification.onclick = () => {
       window.focus();
       notification.close();
