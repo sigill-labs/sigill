@@ -136,7 +136,12 @@ async function addRecipient(
   const who = sender.getByLabel("Who is it for?");
   await who.fill(name);
   if (check) {
-    await sender.getByRole("button", { name: "Add with safety number", exact: true }).click();
+    await sender.getByRole("radio", { name: "Safety number" }).check();
+    await sender
+      .getByRole("button", { name: "Add recipient with safety number", exact: true })
+      .click();
+    // The choice stays for the next link; put it back for the helpers that press Enter.
+    await sender.getByRole("radio", { name: "Link", exact: true }).check();
   } else {
     await who.press("Enter");
   }
@@ -625,7 +630,7 @@ test("the sender's name must fit with the file name, and stray drops are ignored
   expect(await cancelled("#recipient-name", someFile)).toEqual([true, true]);
   const name = makeName(leaks, canary, "Anna");
   await page.getByLabel("Who is it for?").fill(name);
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Add recipient", exact: true }).click();
   await expect(page.getByText("Your name and the file name are too long together")).toBeVisible();
   await expect(page.getByRole("list", { name: "Recipients" })).toHaveCount(0);
 
@@ -1860,13 +1865,14 @@ async function addEmailed(
       .filter({ has: sender.getByLabel("Who is it for?") })
       .locator("button[type=submit]")
       .first(),
-  ).toHaveText("Add and email link with safety number");
+  ).toHaveText("Add recipient and email link with safety number");
   const address = sender.getByLabel("Their email address");
   await address.fill(to);
   if (check) {
     await address.press("Enter");
   } else {
-    await sender.getByRole("button", { name: "Add and email link", exact: true }).click();
+    await sender.getByRole("radio", { name: "Link", exact: true }).check();
+    await sender.getByRole("button", { name: "Add recipient and email link", exact: true }).click();
   }
   await expect(
     recipientRow(sender, name).getByText(`Email sent to ${maskAddress(to)}`),
@@ -2251,7 +2257,12 @@ harness(
       ).toBeVisible();
       // Having opted in, the sender can't add a recipient without an address.
       await page.getByLabel("Who is it for?").fill("Anna");
-      await page.getByRole("button", { name: "Add and email link", exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "Add recipient and email link with safety number",
+          exact: true,
+        })
+        .click();
       await expect(
         page.getByText("Enter a valid email address, like name@example.com."),
       ).toBeVisible();

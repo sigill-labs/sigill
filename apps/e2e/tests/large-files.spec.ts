@@ -40,7 +40,7 @@ for (const { gb, minutes } of [
       await sender.getByRole("button", { name: "Close" }).click();
       const name = makeName(leaks, canary, "Anna");
       await sender.getByLabel("Who is it for?").fill(name);
-      await sender.getByRole("button", { name: "Add", exact: true }).click();
+      await sender.getByRole("button", { name: "Add recipient", exact: true }).click();
       const link =
         (await sender.getByLabel(`Link for ${name}`, { exact: true }).textContent()) ?? "";
       leaks.watchKey("link secret", new URL(link).hash.slice(1));

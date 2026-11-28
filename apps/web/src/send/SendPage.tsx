@@ -137,6 +137,10 @@ type Hash =
   | { status: "failed" };
 
 /** What the page's status region says, kept as data so its text follows a language switch. */
+/** The kinds of link the sender can add, in the toggle's order. BankID joins as a third. */
+const LINK_KINDS = ["plain", "check"] as const;
+type LinkKind = (typeof LINK_KINDS)[number];
+
 type Cue = { kind: "file"; name: string; size: number } | { kind: "links" } | null;
 
 type Connection = {
@@ -261,6 +265,7 @@ export function SendPage({
   const [mail, setMail] = useState(false);
   // Emailing a link is opt-in: until the sender ticks it, there is no email field.
   const [useEmail, setUseEmail] = useState(false);
+  const [linkKind, setLinkKind] = useState<LinkKind>("plain");
   // Each open check's number, by link ID: on screen only, gone with its connection.
   const [checks, setChecks] = useState<Readonly<Record<string, CheckView>>>({});
   const [emailError, setEmailError] = useState(false);
@@ -874,8 +879,7 @@ export function SendPage({
     }
     const first = sender.recipients.length === 0;
     const link = createLink(location.origin);
-    const submitter = (event as SubmitEvent).submitter;
-    const check = submitter instanceof HTMLButtonElement ? submitter.value === "check" : !!email;
+    const check = linkKind === "check";
     dispatchRef.current({ type: "add", link, name, check, ...(email && { email }) });
     // After `add`, so the server already hosts the link this names.
     if (email && findRecipient(senderRef.current, link.linkId)) {
@@ -1258,6 +1262,34 @@ export function SendPage({
             }}
             noValidate
           >
+            <fieldset
+              class="m-0 flex basis-full flex-col gap-2 border-0 p-0"
+              disabled={!file || full}
+            >
+              <legend class="mb-2 p-0 text-sm font-medium">{t.send.linkKind.label}</legend>
+              {/* Native radios, so arrows move the choice; each lies unseen over its label, which wears the look of a toggle. */}
+              <div class="flex w-fit max-w-full gap-0.5 rounded-xl border border-border p-0.5">
+                {LINK_KINDS.map((kind) => (
+                  <label
+                    key={kind}
+                    class={`${buttonVariants({ variant: linkKind === kind ? "secondary" : "ghost", size: "sm" })} relative has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50`}
+                  >
+                    <input
+                      type="radio"
+                      name="kind"
+                      value={kind}
+                      class="absolute inset-0 m-0 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                      checked={linkKind === kind}
+                      onChange={() => setLinkKind(kind)}
+                      aria-describedby={
+                        kind === "check" && linkKind === "check" ? id("check-hint") : undefined
+                      }
+                    />
+                    {t.send.linkKind[kind]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
             <div class={`basis-full ${field}`}>
               <Label htmlFor={id("recipient-name")}>{t.send.recipientLabel}</Label>
               <Input
@@ -1294,6 +1326,10 @@ export function SendPage({
                     onChange={(event) => {
                       const checked = event.currentTarget.checked;
                       setUseEmail(checked);
+                      // An emailed link passes our mail service, so it starts with the safety number.
+                      if (checked) {
+                        setLinkKind("check");
+                      }
                       setEmailError(false);
                     }}
                   />
@@ -1336,39 +1372,18 @@ export function SendPage({
               </div>
             )}
             <div class="flex basis-full flex-wrap gap-2">
-              {mail && useEmail ? (
-                <>
-                  <Button
-                    type="submit"
-                    value="check"
-                    disabled={!file || full}
-                    aria-describedby={file && !full ? id("check-hint") : undefined}
-                  >
-                    {t.send.addEmailCheck}
-                  </Button>
-                  <Button type="submit" variant="outline" value="plain" disabled={!file || full}>
-                    {t.send.addEmail}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button type="submit" value="plain" disabled={!file || full}>
-                    {t.send.add}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    value="check"
-                    disabled={!file || full}
-                    aria-describedby={file && !full ? id("check-hint") : undefined}
-                  >
-                    {t.send.addCheck}
-                  </Button>
-                </>
-              )}
+              <Button type="submit" disabled={!file || full}>
+                {mail && useEmail
+                  ? linkKind === "check"
+                    ? t.send.addEmailCheck
+                    : t.send.addEmail
+                  : linkKind === "check"
+                    ? t.send.addCheck
+                    : t.send.add}
+              </Button>
             </div>
           </form>
-          {file && !full && (
+          {file && !full && linkKind === "check" && (
             <p id={id("check-hint")} class={`mb-0 ${hint}`}>
               {t.send.check.hint(text ? "secret" : "file")}
             </p>

@@ -334,8 +334,14 @@ export const en = {
       "Send each person their own link, for example in a chat or an email. Keep this page open until everyone has received it.",
     change: "Change",
     connectionOptions: "Connection options",
-    addEmail: "Add and email link",
-    addEmailCheck: "Add and email link with safety number",
+    addEmail: "Add recipient and email link",
+    addEmailCheck: "Add recipient and email link with safety number",
+    // One entry per kind of link; a later kind (BankID) adds its own.
+    linkKind: {
+      label: "Verification",
+      plain: "Link",
+      check: "Safety number",
+    },
     share: "Share",
     shareFor: (name: string) => `Share link for ${name}`,
     // No-break spaces keep the count on one line.
@@ -382,8 +388,8 @@ export const en = {
     sendAnother: "Send another file",
     recipientLabel: "Who is it for?",
     recipientPlaceholder: "Their name",
-    add: "Add",
-    addCheck: "Add with safety number",
+    add: "Add recipient",
+    addCheck: "Add recipient with safety number",
     nameError: {
       missing: "Enter a name.",
       taken: "That name is already on the list.",

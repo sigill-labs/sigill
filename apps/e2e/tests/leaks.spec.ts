@@ -212,7 +212,8 @@ test.describe("an emailed link", () => {
     await page.getByLabel("Who is it for?").fill("Anna");
     await page.getByLabel("Email the link for me (less private)").check();
     await page.getByLabel("Their email address").fill(to);
-    await page.getByRole("button", { name: "Add and email link", exact: true }).click();
+    await page.getByRole("radio", { name: "Link", exact: true }).check();
+    await page.getByRole("button", { name: "Add recipient and email link", exact: true }).click();
     // Shown once the server has emailed it: the link with the server's value before the secret.
     const link = new URL(
       (await page.getByLabel("Link for Anna", { exact: true }).textContent()) ?? "",

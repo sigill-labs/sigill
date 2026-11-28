@@ -35,9 +35,10 @@ async function share(leaks: Leaks, sender: Page, text: string, from: string, nam
 /** Adds a recipient on /send/secret and returns their link, with its secret watched. With `check`, the link has the safety number on. */
 async function addLink(leaks: Leaks, sender: Page, name: string, check = false) {
   await sender.locator("#secret-recipient-name").fill(name);
+  await sender.getByRole("radio", { name: check ? "Safety number" : "Link", exact: true }).check();
   await sender
     .getByRole("button", {
-      name: check ? "Add with safety number" : "Add",
+      name: check ? "Add recipient with safety number" : "Add recipient",
       exact: true,
     })
     .click();
@@ -218,7 +219,7 @@ test("a pasted text over 10,000 characters stays whole and can't be shared until
   const field = sender.getByLabel("Your secret");
   const error = sender.locator("#secret-text-error");
   const live = error.locator("[role=status]");
-  const add = sender.getByRole("button", { name: "Add", exact: true });
+  const add = sender.getByRole("button", { name: "Add recipient", exact: true });
   await expect(live).toBeAttached();
   await expect(live).toBeEmpty();
   // Step 2 stays once shown, so the secret can grow too long after Continue.

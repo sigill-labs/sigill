@@ -229,7 +229,7 @@ test("switching language while sharing keeps the share, and the recipient still 
   await sender.getByLabel("Your secret").fill(text);
   await continueToLinks(sender);
   await sender.locator("#secret-recipient-name").fill(name);
-  await sender.getByRole("button", { name: "Add", exact: true }).click();
+  await sender.getByRole("button", { name: "Add recipient", exact: true }).click();
   const link = (await sender.getByLabel(`Link for ${name}`, { exact: true }).textContent()) ?? "";
   leaks.watchKey("link secret", new URL(link).hash.slice(1));
 

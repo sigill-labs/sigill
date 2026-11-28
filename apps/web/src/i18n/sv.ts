@@ -314,8 +314,13 @@ export const sv: Messages = {
       "Skicka varje person deras egen länk, till exempel i en chatt eller ett mejl. Håll den här sidan öppen tills alla har tagit emot den.",
     change: "Byt",
     connectionOptions: "Anslutningsalternativ",
-    addEmail: "Lägg till och mejla länk",
-    addEmailCheck: "Lägg till och mejla länk med kontrollnummer",
+    addEmail: "Lägg till mottagare och mejla länk",
+    addEmailCheck: "Lägg till mottagare och mejla länk med kontrollnummer",
+    linkKind: {
+      label: "Verifiering",
+      plain: "Länk",
+      check: "Kontrollnummer",
+    },
     share: "Dela",
     shareFor: (name: string) => `Dela länken till ${name}`,
     // No-break spaces keep the count on one line.
@@ -362,8 +367,8 @@ export const sv: Messages = {
     sendAnother: "Skicka en ny fil",
     recipientLabel: "Vem ska få den?",
     recipientPlaceholder: "Mottagarens namn",
-    add: "Lägg till",
-    addCheck: "Lägg till med kontrollnummer",
+    add: "Lägg till mottagare",
+    addCheck: "Lägg till mottagare med kontrollnummer",
     nameError: {
       missing: "Skriv ett namn.",
       taken: "Det namnet finns redan på listan.",
