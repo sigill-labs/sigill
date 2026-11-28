@@ -594,10 +594,10 @@ test("logs only allowlisted fields and never relay payloads", async () => {
   }
 });
 
-test("heartbeat lets the panel promise a dropped connection is noticed within a minute", () => {
+test("heartbeat lets the trace log promise a dropped connection is noticed within a minute", () => {
   assert.ok(
     2 * HEARTBEAT_MS <= 60_000,
-    "server-facts.ts promises a dropped connection is noticed within a minute",
+    "the trace log's `dropped` text (traces.stated in apps/web/src/i18n) promises a dropped connection is let go within a minute",
   );
 });
 
