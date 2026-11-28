@@ -915,6 +915,31 @@ export function SendPage({
     });
   };
 
+  // Offered once every link has delivered, so nothing on its way is cut off. Like Remove on
+  // every card: each link stops being hosted. The name stays, now unlocked.
+  const onSendAnother = () => {
+    dispatchRef.current({ type: "reset" });
+    setChecks({});
+    prepare(undefined);
+    setFileError("");
+    setNameError("");
+    setContinued(false);
+    setCue(null);
+    const box = document.getElementById("secret-text");
+    if (text && box instanceof HTMLTextAreaElement) {
+      box.value = "";
+      setTextLength(0);
+    }
+    // The frame comes after the render that brings back the picker and drops steps 2 and 3.
+    requestAnimationFrame(() => {
+      const top = document.getElementById(id("choose"));
+      if (top) {
+        glideTo(top);
+      }
+      document.getElementById(text ? "secret-text" : "file")?.focus({ preventScroll: true });
+    });
+  };
+
   const hasRecipients = sender.recipients.length > 0;
   // A label while the file can still be changed, plain text once the list locks it.
   const FileRow = hasRecipients ? "div" : "label";
@@ -1470,10 +1495,10 @@ export function SendPage({
               </span>
             </span>
           </p>
-          {/* Once the button was offered its place stays: the button and the browser's answer share
-              one grid cell, the hidden one keeping its space, so the bar's text wraps the same and
-              the bar keeps its height when the button goes (see SwapLabel). */}
-          {(canAskToNotify || notifyAnswer) && (
+          {/* Once there is a link, Notify me while sending, the browser's answer and Send another
+              file once done share one grid cell, the hidden ones keeping their space, so the bar's
+              text wraps the same and the bar keeps its height as they swap (see SwapLabel). */}
+          {(hasRecipients || canAskToNotify || notifyAnswer) && (
             <div class="grid flex-none items-center justify-items-end">
               <Button
                 id={id("notify-me")}
@@ -1500,10 +1525,21 @@ export function SendPage({
                   role="status"
                   // As wide as the button, which keeps its place, so the answer wraps instead of
                   // taking width from the bar's text.
-                  class={`col-start-1 row-start-1 m-0 w-0 min-w-full text-right text-[0.8rem] leading-tight ${canAskToNotify ? "invisible" : ""} ${unfinished ? "text-muted-foreground" : ""}`}
+                  class={`col-start-1 row-start-1 m-0 w-0 min-w-full text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
                 >
                   {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
                 </p>
+              )}
+              {hasRecipients && (
+                // Only once every link has delivered, so it never cuts a transfer off.
+                <Button
+                  type="button"
+                  size="sm"
+                  className={`col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60 ${allDone ? "" : "invisible"}`}
+                  onClick={onSendAnother}
+                >
+                  {(text ? t.secret : t.send).sendAnother}
+                </Button>
               )}
             </div>
           )}

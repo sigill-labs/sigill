@@ -357,7 +357,8 @@ export const sv: Messages = {
     readFailed: "Det gick inte att läsa filen. Välj den igen.",
     hashPending: "Inte klar än",
     locked: "Ta bort alla mottagare för att ändra ditt namn eller din fil.",
-    lockedDelivered: "Ladda om sidan för att ändra ditt namn eller din fil.",
+    lockedDelivered: "Välj Skicka en ny fil längst ner för att ändra ditt namn eller din fil.",
+    sendAnother: "Skicka en ny fil",
     recipientLabel: "Vem ska få den?",
     recipientPlaceholder: "Mottagarens namn",
     add: "Lägg till",
@@ -640,7 +641,9 @@ export const sv: Messages = {
     },
     first: "Skriv eller klistra in hemligheten först.",
     locked: "Ta bort alla mottagare för att ändra ditt namn eller din hemlighet.",
-    lockedDelivered: "Ladda om sidan för att ändra ditt namn eller din hemlighet.",
+    lockedDelivered:
+      "Välj Skicka en ny hemlighet längst ner för att ändra ditt namn eller din hemlighet.",
+    sendAnother: "Skicka en ny hemlighet",
     allDone: "Alla länkar har levererat hemligheten",
     summary: (done: number, total: number) =>
       `${done} av ${total} länkar har levererat hemligheten`,

@@ -290,6 +290,45 @@ for (const size of [0, 48 * 1024 - 1, 48 * 1024, 48 * 1024 + 1]) {
   });
 }
 
+test("Send another file clears the list and the file, keeps the name, and a new file delivers", async ({
+  demo,
+  leaks,
+  canary,
+}) => {
+  const first = makeFile(leaks, canary, 1000);
+  const from = makeName(leaks, canary, "David");
+  const sender = await openSender(demo, first, from);
+  const anna = makeName(leaks, canary, "Anna");
+  const firstLink = await addRecipient(leaks, sender, anna);
+  const again = sender.getByRole("button", { name: "Send another file" });
+  // Only once nothing is on its way.
+  await expect(again).toHaveCount(0);
+  const recipient = await demo.open("recipient");
+  await recipient.goto(firstLink);
+  await download(recipient, first);
+  await expect(delivered(sender, anna)).toBeAttached();
+
+  await again.click();
+  await expect(sender.getByLabel("Choose a file")).toBeFocused();
+  await expect(sender.getByText(first.name)).toHaveCount(0);
+  await expect(sender.getByRole("heading", { name: "Share the links" })).toHaveCount(0);
+  await expect(sender.getByLabel("Your name")).toHaveValue(from);
+  await expect(sender.getByLabel("Your name")).toBeEnabled();
+
+  const second = leaks.watch(canaryFile(canary.fork("second file"), { size: 2000 }));
+  await chooseFile(sender, { name: second.name, mimeType: second.mime, buffer: second.bytes });
+  const bo = makeName(leaks, canary, "Bo");
+  const secondLink = await addRecipient(leaks, sender, bo);
+  expect(secondLink).not.toBe(firstLink);
+  const { bytes } = await receive(demo, "recipient-2", secondLink, second, "2.0 KB", from);
+  expect(sha256Hex(bytes)).toBe(sha256Hex(second.bytes));
+  await expect(delivered(sender, bo)).toBeAttached();
+  // The first link was dropped with the list.
+  const late = await demo.open("recipient-3");
+  await late.goto(firstLink);
+  await expect(late.getByText("This link isn't active")).toBeVisible();
+});
+
 test("refuses used, unknown and malformed links", async ({ demo, leaks, canary, baseURL }) => {
   const file = makeFile(leaks, canary, 100_001);
   const sender = await openSender(demo, file);
