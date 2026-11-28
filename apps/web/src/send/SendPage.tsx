@@ -84,7 +84,7 @@ import {
   MAX_ADDRESS,
   MAX_LINKS,
 } from "@fidant/protocol";
-import { useEffect, useReducer, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from "preact/hooks";
 import { Alert, AlertDescription } from "#components/ui/alert";
 import { Button, buttonVariants } from "#components/ui/button";
 import { Input } from "#components/ui/input";
@@ -285,6 +285,10 @@ export function SendPage({
   const [canAskToNotify, setCanAskToNotify] = useState(false);
   // Step 2 appears on Continue and stays: its links outlive any later change to step 1.
   const [continued, setContinued] = useState(false);
+  // Step 3 waits below the fold, as step 2 does, until the sender continues or scrolls to it.
+  const [atLinks, setAtLinks] = useState(false);
+  // Where step 3's top was on screen just before step 2 let go of its height.
+  const linksTopRef = useRef<number | undefined>(undefined);
   // Screen readers hear it; focus moves on, so nothing else would say what happened.
   const [cue, setCue] = useState<Cue>(null);
   const [notifyAnswer, setNotifyAnswer] = useState<"on" | "blocked" | undefined>(undefined);
@@ -820,6 +824,7 @@ export function SendPage({
     setEmailError(preview.emailError ?? false);
     setTextLength(preview.text?.length ?? 0);
     setContinued(preview.continued ?? state.recipients.length > 0);
+    setAtLinks(state.recipients.length > 0);
     // The box is not a controlled field, so its text is set here.
     const box = document.getElementById("secret-text");
     if (text && box instanceof HTMLTextAreaElement) {
@@ -936,7 +941,7 @@ export function SendPage({
     form.reset();
     input.focus();
     if (first) {
-      // Step 3 appears below; the page stays where it is and focus stays for the next name.
+      // Step 3 appears below the fold; the page stays where it is and focus stays for the next name.
       setCue({ kind: "links" });
     }
   };
@@ -965,6 +970,7 @@ export function SendPage({
     setFileError("");
     setNameError("");
     setContinued(false);
+    setAtLinks(false);
     setCue(null);
     const box = document.getElementById("secret-text");
     if (text && box instanceof HTMLTextAreaElement) {
@@ -1047,6 +1053,37 @@ export function SendPage({
       document.getElementById(id("recipient-name"))?.focus({ preventScroll: true });
     });
   };
+
+  // Once step 3's heading reaches the top, step 2 lets go of the height that kept step 3 out of view.
+  useEffect(() => {
+    if (!hasRecipients) {
+      setAtLinks(false);
+      return;
+    }
+    const links = document.getElementById(id("links"));
+    if (atLinks || !links) {
+      return;
+    }
+    const onScroll = () => {
+      const margin = parseFloat(getComputedStyle(links).scrollMarginTop) || 0;
+      const top = links.getBoundingClientRect().top;
+      if (top <= margin + 1) {
+        linksTopRef.current = top;
+        setAtLinks(true);
+      }
+    };
+    addEventListener("scroll", onScroll, { passive: true });
+    return () => removeEventListener("scroll", onScroll);
+  }, [hasRecipients, atLinks]);
+  // The space goes from above step 3, so the page scrolls back by as much and nothing on screen moves.
+  useLayoutEffect(() => {
+    const before = linksTopRef.current;
+    linksTopRef.current = undefined;
+    const links = document.getElementById(id("links"));
+    if (atLinks && before !== undefined && links) {
+      scrollBy({ top: links.getBoundingClientRect().top - before, behavior: "instant" });
+    }
+  }, [atLinks]);
 
   const goToLinks = () => {
     const target = document.getElementById(id("links"));
@@ -1280,7 +1317,7 @@ export function SendPage({
       {continued && (
         <section
           id={id("recipients")}
-          class={`mt-12 scroll-mt-16 border-t border-border pt-8 ${hasRecipients ? "" : lastStep}`}
+          class={`mt-12 scroll-mt-16 border-t border-border pt-8 ${hasRecipients && atLinks ? "" : lastStep}`}
           aria-labelledby={id("recipients-heading")}
         >
           <p class={stepLabel}>{t.send.step(2)}</p>
