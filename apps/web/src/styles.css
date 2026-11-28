@@ -135,6 +135,18 @@
   }
 }
 
+/* The send page's traces panel (TraceDrawer) on a wide screen: the page, its header and the bottom
+   bar make room for it on the right, as wide as the panel (lg:w-[24rem]). Outside the layers, so
+   it wins over the bar's inset-x-0 utility. */
+@media (min-width: 64rem) {
+  html[data-traces-panel] body {
+    padding-right: 24rem;
+  }
+  html[data-traces-panel] [data-page-bar] {
+    right: 24rem;
+  }
+}
+
 @theme {
   --animate-flow: flow 0.6s linear infinite;
   --animate-art-arrive: art-arrive 0.7s ease-out both paused;

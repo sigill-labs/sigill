@@ -1544,11 +1544,15 @@ export function SendPage({
         </div>
         {/* As tall at every step: two lines of text with room around them, and three lines, which a
             phone beside Notify me needs, in the same height with less room. */}
-        <div class="relative mx-auto flex min-h-[3.95rem] max-w-xl items-center gap-3">
+        <div class="relative mx-auto flex min-h-[3.95rem] max-w-xl items-center gap-2 sm:gap-3">
           {/* All three texts share one grid cell, the hidden ones keeping their space, so the bar is
               as tall at a step as while sending and when done, whichever text wraps to more lines
-              (see SwapLabel). */}
-          <p class="m-0 grid flex-1 text-[0.9rem] leading-snug font-medium" aria-hidden="true">
+              (see SwapLabel). The text gives way on a narrow phone, hyphenating a long word, or
+              breaking it where the browser can't, so the buttons beside it stay on the screen. */}
+          <p
+            class="m-0 grid min-w-0 flex-1 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere"
+            aria-hidden="true"
+          >
             <span
               class={`col-start-1 row-start-1 flex items-center gap-3 ${hasRecipients ? "invisible" : ""}`}
             >
@@ -1582,8 +1586,8 @@ export function SendPage({
             </span>
           </p>
           {/* Once there is a link, Notify me while sending, the browser's answer and Send another
-              file once done share one grid cell, the hidden ones keeping their space, so the bar's
-              text wraps the same and the bar keeps its height as they swap (see SwapLabel). */}
+              file once done share one grid cell. Send another is only there once done, so while
+              sending the cell is as narrow as the bell and the bar's text keeps to two rows. */}
           {(hasRecipients || canAskToNotify || notifyAnswer) && (
             <div class="grid flex-none items-center justify-items-end">
               <Button
@@ -1591,7 +1595,10 @@ export function SendPage({
                 type="button"
                 variant="outline"
                 size="sm"
-                className={`col-start-1 row-start-1 ${unfinished && canAskToNotify ? "" : "invisible"}`}
+                // A bell alone on a phone, where the bar's text needs the room; the bell and the
+                // words from sm up. The words stay for screen readers either way.
+                className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${unfinished && canAskToNotify ? "" : "invisible"}`}
+                title={t.send.notifyMe}
                 onClick={async () => {
                   const answer = await askToNotify();
                   if (answer !== "default") {
@@ -1600,7 +1607,8 @@ export function SendPage({
                   }
                 }}
               >
-                {t.send.notifyMe}
+                <Icon name="bell" class="size-4" />
+                <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
               </Button>
               {notifyAnswer && (
                 // Takes the focus the button held, and tells the sender what the browser answered.
@@ -1609,19 +1617,18 @@ export function SendPage({
                   id={id("notify-answer")}
                   tabIndex={-1}
                   role="status"
-                  // As wide as the button, which keeps its place, so the answer wraps instead of
-                  // taking width from the bar's text.
-                  class={`col-start-1 row-start-1 m-0 w-0 min-w-full text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
+                  // Narrow, so the answer wraps instead of taking much width from the bar's text.
+                  class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
                 >
                   {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
                 </p>
               )}
-              {hasRecipients && (
+              {hasRecipients && allDone && (
                 // Only once every link has delivered, so it never cuts a transfer off.
                 <Button
                   type="button"
                   size="sm"
-                  className={`col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60 ${allDone ? "" : "invisible"}`}
+                  className="col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60"
                   onClick={onSendAnother}
                 >
                   {(text ? t.secret : t.send).sendAnother}

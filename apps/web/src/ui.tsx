@@ -5,7 +5,9 @@ import type { AnchorHTMLAttributes, ComponentChildren } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { DropdownMenu } from "radix-ui";
 import { Alert, AlertDescription, AlertTitle } from "#components/ui/alert";
+import { Badge } from "#components/ui/badge";
 import { buttonVariants } from "#components/ui/button";
+import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "#components/ui/sheet";
 import { useI18n } from "./i18n/I18n.tsx";
 import { LANGUAGE_NAMES, type Lang, localizedPath } from "./i18n/language.ts";
 import { describeTrace } from "./lib/format.ts";
@@ -89,6 +91,12 @@ export const ICONS = {
     <>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
       <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M6 8a6 6 0 0 1 12 0c0 4.5 1.4 6 2.7 7.3A1 1 0 0 1 20 17H4a1 1 0 0 1-.7-1.7C4.6 14 6 12.5 6 8z" />
+      <path d="M10.3 21a2 2 0 0 0 3.4 0" />
     </>
   ),
   footprints: (
@@ -599,17 +607,13 @@ export function TraceLog({ log }: { log: Log }) {
                   {/* The marker that starts a new transfer holds nothing, so it has no pills or duration. */}
                   {line.who && (
                     <>
-                      <span
-                        class={`inline-block rounded-full px-2 text-xs leading-5 font-medium ${WHO_CLASSES[line.who.kind]}`}
-                      >
+                      <Badge variant="secondary" className={WHO_CLASSES[line.who.kind]}>
                         {line.who.text}
-                      </span>
+                      </Badge>
                       <span class="sr-only">, </span>
                       {line.where !== undefined && (
                         <>
-                          <span class="inline-block rounded-full border border-border px-2 text-xs leading-5 text-foreground">
-                            {line.where}
-                          </span>
+                          <Badge variant="outline">{line.where}</Badge>
                           <span class="sr-only">, </span>
                         </>
                       )}
@@ -644,7 +648,25 @@ export function TracePanel({ traces }: { traces: Log }) {
   );
 }
 
-/** The send page's "Traces": an icon button, for the bottom bar, that opens the file facts and the trace log in a drawer. */
+/** Tailwind's `lg`, from which the traces are a panel beside the page; styles.css uses the same width. */
+const WIDE = "(min-width: 64rem)";
+
+/** Whether a media query matches, following changes. False while the build prerenders a page, which has no screen. */
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof matchMedia === "function" && matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const list = matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener("change", update);
+    return () => list.removeEventListener("change", update);
+  }, [query]);
+  return matches;
+}
+
+/** The send page's "Traces": an icon button, for the bottom bar, that shows and hides the file facts and the trace log, in a panel beside the page on a wide screen and in a drawer on a narrower one. */
 export function TraceDrawer({
   facts,
   visible,
@@ -661,83 +683,79 @@ export function TraceDrawer({
   onGreen: boolean;
 }) {
   const { t } = useI18n();
-  const titleId = useId();
-  const drawer = useRef<HTMLDialogElement>(null);
   const left = tracesLeft(traces);
   const name = t.traces.button(left);
-  // Whether the last press began on the dimmed page, so a text selection dragged out of the drawer doesn't close it.
-  const pressedOutside = useRef(false);
+  // shadcn's Sheet. On a wide screen it is a panel beside the page that isn't modal, open until
+  // the button or Close hides it; on a narrower one the button opens it as a modal drawer.
+  const wide = useMediaQuery(WIDE);
+  const [pinned, setPinned] = useState(true);
+  const [drawer, setDrawer] = useState(false);
+  const open = wide ? pinned : drawer;
   useEffect(() => {
+    // A hidden page closes the drawer, so it never leaves the next page inert.
     if (!visible) {
-      drawer.current?.close();
+      setDrawer(false);
     }
   }, [visible]);
+  useEffect(() => {
+    // styles.css makes room for the panel beside the page and the bottom bar.
+    const root = document.documentElement;
+    root.toggleAttribute("data-traces-panel", wide && pinned);
+    return () => root.removeAttribute("data-traces-panel");
+  }, [wide, pinned]);
   return (
-    <>
-      {/* 40 × 40, no taller than the bar's two lines of text. showModal from the button returns
-          focus to it when the drawer closes. The badge counts the traces still left; its number
-          is in the button's name, so screen readers hear it there and not twice. */}
-      <button
-        type="button"
+    <Sheet
+      open={open}
+      onOpenChange={(next) => (wide ? setPinned(next) : setDrawer(next))}
+      modal={!wide}
+    >
+      {/* 40 × 40, no taller than the bar's two lines of text. The badge counts the traces still
+          left; its number is in the button's name, so screen readers hear it there and not twice. */}
+      <SheetTrigger
         aria-label={name}
         title={name}
         class={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "relative size-10 cursor-pointer",
+          "relative size-10 flex-none cursor-pointer",
           onGreen
             ? "text-white hover:bg-white/15 hover:text-white focus-visible:border-white focus-visible:ring-white/60 dark:hover:bg-white/15"
             : "text-muted-foreground",
         )}
-        onClick={() => drawer.current?.showModal()}
       >
         <Icon name="footprints" class="size-5" />
         {left > 0 && (
-          <span
+          <Badge
             aria-hidden="true"
-            class={cn(
-              "pointer-events-none absolute top-0 right-0 min-w-4 rounded-full px-1 text-center text-[0.625rem] font-semibold leading-4 tabular-nums",
-              onGreen ? "bg-white text-emerald-800" : "bg-foreground text-background",
+            className={cn(
+              "pointer-events-none absolute top-0 right-0 h-4 min-w-4 px-1 text-[0.625rem] tabular-nums",
+              onGreen && "bg-white text-emerald-800",
             )}
           >
             {left > 99 ? "99+" : left}
-          </span>
+          </Badge>
         )}
-      </button>
-      {/* A native dialog, like the safety number's: it holds focus and dims the page without
-          injecting a style, which the CSP blocks. A drawer from the right; on a phone it covers
-          the screen. Its content stays rendered while closed. */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: the click is on the dimmed page; Escape and the Close button close it from the keyboard */}
-      <dialog
-        ref={drawer}
-        aria-labelledby={titleId}
-        class="m-0 ml-auto h-dvh max-h-none w-full max-w-none overflow-y-auto border-border bg-popover text-[0.9rem] text-popover-foreground shadow-xl backdrop:bg-black/50 open:animate-in open:slide-in-from-right motion-reduce:animate-none sm:w-[28rem] sm:border-l [&_code]:text-[0.85rem]"
-        // The padding is on the inner box, so a press on the dialog itself is a press on the dimmed page.
-        onPointerDown={(event) => {
-          pressedOutside.current = event.target === event.currentTarget;
-        }}
-        onClick={(event) => {
-          if (pressedOutside.current && event.target === event.currentTarget) {
-            event.currentTarget.close();
-          }
-          pressedOutside.current = false;
-        }}
+      </SheetTrigger>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        aria-describedby={undefined}
+        // The whole screen on a phone; a drawer from the right from sm up; the panel from lg.
+        className="w-full gap-0 overflow-y-auto p-6 text-[0.9rem] max-sm:border-l-0 lg:w-[24rem] lg:shadow-none [&_code]:text-[0.85rem]"
+        // The panel opens with the page and stays beside it: it takes no focus and a click on the
+        // page doesn't close it.
+        onOpenAutoFocus={(event) => wide && event.preventDefault()}
+        onInteractOutside={(event) => wide && event.preventDefault()}
       >
-        <div class="min-h-full p-6">
-          <div class="flex items-center justify-between gap-4">
-            <h2 id={titleId} class="m-0 text-[1.25rem] font-bold">
-              {t.traces.title}
-            </h2>
-            <form method="dialog">
-              <button type="submit" class={buttonVariants({ variant: "ghost", size: "sm" })}>
-                {t.common.close}
-              </button>
-            </form>
-          </div>
-          {facts.length > 0 && <Facts rows={facts} />}
-          <TraceLog log={traces} />
+        <div class="flex items-center justify-between gap-4">
+          <SheetTitle className="m-0 text-[1.25rem] font-bold">{t.traces.title}</SheetTitle>
+          <SheetClose class={buttonVariants({ variant: "ghost", size: "sm" })}>
+            {t.common.close}
+          </SheetClose>
         </div>
-      </dialog>
-    </>
+        {facts.length > 0 && <Facts rows={facts} />}
+        <TraceLog log={traces} />
+      </SheetContent>
+    </Sheet>
   );
 }
 
