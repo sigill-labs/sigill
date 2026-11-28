@@ -135,15 +135,18 @@
   }
 }
 
-/* The send page's traces panel (TraceDrawer) on a wide screen: the page, its header and the bottom
-   bar make room for it on the right, as wide as the panel (lg:w-[24rem]). Outside the layers, so
-   it wins over the bar's inset-x-0 utility. */
+/* The bottom bar's height: its row's min-h-[3.95rem] and its py-1.5. The traces panel ends above it. */
+:root {
+  --bar-height: 4.7rem;
+}
+
+/* A page's traces panel (TraceDrawer) on a wide screen is in App's #traces-slot, beside the pages
+   in the page's flow, so the pages centre in what is left. The bottom bar is fixed and full width,
+   so its row moves left by half the panel's width to stay under the page's column. Outside the
+   layers, so it wins over the utilities. */
 @media (min-width: 64rem) {
-  html[data-traces-panel] body {
-    padding-right: 24rem;
-  }
-  html[data-traces-panel] [data-page-bar] {
-    right: 24rem;
+  html:has(#traces-slot > *) [data-bar-row] {
+    translate: -12rem 0;
   }
 }
 

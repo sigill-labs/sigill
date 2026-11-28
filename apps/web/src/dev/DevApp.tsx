@@ -20,6 +20,18 @@ const BANNERS = { localhost: "Localhost bar", "lost-server": "Server lost bar" }
 type Banner = keyof typeof BANNERS;
 const hiddenKey = (banner: Banner) => `dev-hide-${banner}`;
 const PLAY_MS = 1500;
+/**
+ * While the panel is open, the page, its bottom bar and the traces sheet move left of it, so the
+ * panel sits beside the page instead of over it. 16rem is the panel's w-64. From lg the traces
+ * panel is in the page's flow (App's #traces-slot), so only the drawer below lg needs moving.
+ */
+const BESIDE_THE_PAGE = `
+body { padding-right: 16rem !important; }
+[data-page-bar] { right: 16rem !important; }
+@media (max-width: 63.99rem) {
+  [data-slot="sheet-content"] { right: 16rem !important; max-width: calc(100vw - 16rem) !important; }
+  [data-slot="sheet-overlay"] { right: 16rem !important; }
+}`;
 const GROUPS = [...new Set(STATES.map((s) => s.group))];
 const HREF: Record<DevState["page"], string> = {
   send: "/send",
@@ -139,6 +151,7 @@ export function DevApp(props: { secure: boolean; theme: Theme }) {
           {[...hidden].map((banner) => `[data-banner="${banner}"]{display:none}`).join("")}
         </style>
       )}
+      {open && <style>{BESIDE_THE_PAGE}</style>}
       <button
         type="button"
         class="fixed top-1/2 right-0 z-[70] rounded-l-lg border border-r-0 border-border cursor-pointer bg-popover px-10 py-1.5 text-xs font-semibold text-popover-foreground shadow-lg [writing-mode:vertical-rl]"

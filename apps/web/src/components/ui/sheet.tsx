@@ -38,13 +38,16 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  container,
   ...props
 }: Parameters<typeof SheetPrimitive.Content>[0] & {
   side?: "top" | "right" | "bottom" | "left";
   showCloseButton?: boolean;
+  /** Where the portal puts the sheet; the body if left out. */
+  container?: Parameters<typeof SheetPrimitive.Portal>[0]["container"];
 }) {
   return (
-    <SheetPortal>
+    <SheetPortal container={container}>
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"

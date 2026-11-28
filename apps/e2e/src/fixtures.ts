@@ -484,6 +484,19 @@ export const recipientRow = (sender: Page, name: string) =>
 export const delivered = (sender: Page, name: string) =>
   recipientRow(sender, name).getByText(`Delivered through ${name}'s link`);
 
+/**
+ * The page's Traces panel, opened with the bar's Traces button unless it is open already, since a
+ * second press would close it. Closed until then; at the default 1280 px it opens beside the page,
+ * not modal, so the page stays usable.
+ */
+export async function openTraces(page: Page): Promise<Locator> {
+  const traces = page.getByRole("dialog", { name: "Traces" });
+  if ((await traces.count()) === 0) {
+    await page.getByRole("button", { name: /^Traces/ }).click();
+  }
+  return traces;
+}
+
 /** Chooses a file the send page accepts, by its path or as name, type and bytes, then waits for the page to move focus to "Your name" a frame later, which would otherwise take the text of a field being filled, and continues to step 2. */
 export async function chooseFile(
   page: Page,

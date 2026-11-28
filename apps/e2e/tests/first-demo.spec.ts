@@ -17,6 +17,7 @@ import {
   type Leaks,
   makeName,
   type Observed,
+  openTraces,
   recipientRow,
 } from "../src/fixtures.ts";
 import { commitTo, interpose, type Signal, signalsOf, tamperSignal } from "../src/interpose.ts";
@@ -119,8 +120,9 @@ async function openSender(
     mimeType: file.mime,
     buffer: file.bytes,
   });
-  // The traces panel, with the file's facts, is open beside the page on a wide screen.
+  await page.getByRole("button", { name: /^Traces/ }).click();
   await expect(page.getByText(sha256Hex(file.bytes))).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
   return page;
 }
 
@@ -169,11 +171,11 @@ async function receive(
   await expect(page.getByText(sizeText, { exact: true })).toBeVisible();
   await page.getByText("Technical details").click();
   await expect(page.getByText(`${file.size.toLocaleString("en-US")} bytes`)).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Traces" })).toContainText(
+  await expect(await openTraces(page)).toContainText(
     /Server, Memory, [^:]*: Paired this page with the sender's on link ID/,
   );
   if (sender) {
-    await expect(sender.getByRole("dialog", { name: "Traces" })).toContainText(
+    await expect(await openTraces(sender)).toContainText(
       /Server, Memory, [^:]*: Paired a recipient's page with link ID/,
     );
   }
@@ -259,7 +261,7 @@ test("delivers a file to two recipients with a verified checksum", async ({
 
   // The drawer's trace log names each link by its server-side prefix, never the file.
   const prefix = (link: string) => `${new URL(link).pathname.replace(/^\/r\//, "").slice(0, 6)}…`;
-  const senderTraces = sender.getByRole("dialog", { name: "Traces" });
+  const senderTraces = await openTraces(sender);
   await expect(senderTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
   for (const link of links) {
     await expect(senderTraces).toContainText(`link ID ${prefix(link)}`);
@@ -271,10 +273,11 @@ test("delivers a file to two recipients with a verified checksum", async ({
     /^Traces, \d+ still kept$/,
   );
 
-  const recipientTraces = received[0]?.page.getByRole("dialog", { name: "Traces" });
-  if (!recipientTraces) {
+  const recipientPage = received[0]?.page;
+  if (!recipientPage) {
     throw new Error("no recipient");
   }
+  const recipientTraces = await openTraces(recipientPage);
   // Once the transfer is done, this page's connection to our server has closed.
   await expect(recipientTraces).toContainText(
     /Server, Memory, lasted [^:]*: This page connected\./,
@@ -587,7 +590,7 @@ harness("a recipient who can't reach the server is told so", async ({ actor, lea
   ).toBeVisible();
   await expect(recipient.getByRole("button", { name: "Try again" })).toBeVisible();
   // The page never reached the server, so no trace names it.
-  await expect(recipient.getByRole("dialog", { name: "Traces" })).not.toContainText(/\bServer,/);
+  await expect(await openTraces(recipient)).not.toContainText(/\bServer,/);
 });
 
 test("the sender's name must fit with the file name, and stray drops are ignored", async ({
@@ -663,7 +666,7 @@ test("a waiting recipient sees when the sender goes offline", async ({ demo, lea
   await expect(recipient.getByRole("button", { name: "Download" })).toBeVisible();
   await sender.close();
   await expect(recipient.getByText("The sender's page is closed")).toBeVisible();
-  await expect(recipient.getByRole("dialog", { name: "Traces" })).toContainText(
+  await expect(await openTraces(recipient)).toContainText(
     /Server, Memory, lasted [^:]*: This page connected\./,
   );
 });

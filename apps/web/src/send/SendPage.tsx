@@ -1544,116 +1544,126 @@ export function SendPage({
         </div>
         {/* As tall at every step: two lines of text with room around them, and three lines, which a
             phone beside Notify me needs, in the same height with less room. */}
-        <div class="relative mx-auto flex min-h-[3.95rem] max-w-xl items-center gap-2 sm:gap-3">
-          {/* All three texts share one grid cell, the hidden ones keeping their space, so the bar is
+        {/* The row with the text and Notify me is centred with the page's column, at most as wide;
+            the Traces button is at the bar's right edge. On a phone the row takes what the button
+            leaves. */}
+        <div class="relative grid grid-cols-[1fr_minmax(0,36rem)_1fr] items-center">
+          <div
+            data-bar-row
+            class="col-start-2 flex min-h-[3.95rem] min-w-0 items-center gap-2 sm:gap-3"
+          >
+            {/* All three texts share one grid cell, the hidden ones keeping their space, so the bar is
               as tall at a step as while sending and when done, whichever text wraps to more lines
               (see SwapLabel). The text gives way on a narrow phone, hyphenating a long word, or
               breaking it where the browser can't, so the buttons beside it stay on the screen. */}
-          <p
-            class="m-0 grid min-w-0 flex-1 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere"
-            aria-hidden="true"
-          >
-            <span
-              class={`col-start-1 row-start-1 flex items-center gap-3 ${hasRecipients ? "invisible" : ""}`}
+            <p
+              class="m-0 grid min-w-0 flex-1 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere"
+              aria-hidden="true"
             >
-              <span class="flex size-4 flex-none items-center justify-center">
-                <span class="size-2 rounded-full bg-muted-foreground" />
+              <span
+                class={`col-start-1 row-start-1 flex items-center gap-3 ${hasRecipients ? "invisible" : ""}`}
+              >
+                <span class="flex size-4 flex-none items-center justify-center">
+                  <span class="size-2 rounded-full bg-muted-foreground" />
+                </span>
+                <span>{stepText}</span>
               </span>
-              <span>{stepText}</span>
-            </span>
-            <span
-              class={`col-start-1 row-start-1 flex items-center gap-3 ${unfinished ? "" : "invisible"}`}
-            >
-              {/* In a box as wide as the check that replaces it, so the text starts at the same place. */}
-              <span class="flex size-4 flex-none items-center justify-center">
-                <span class="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+              <span
+                class={`col-start-1 row-start-1 flex items-center gap-3 ${unfinished ? "" : "invisible"}`}
+              >
+                {/* In a box as wide as the check that replaces it, so the text starts at the same place. */}
+                <span class="flex size-4 flex-none items-center justify-center">
+                  <span class="size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+                </span>
+                <span>
+                  <span class="block">{sendingText}</span>
+                  <span class="block font-normal text-muted-foreground">{t.send.keepOpen}</span>
+                </span>
               </span>
-              <span>
-                <span class="block">{sendingText}</span>
-                <span class="block font-normal text-muted-foreground">{t.send.keepOpen}</span>
-              </span>
-            </span>
-            <span
-              class={`col-start-1 row-start-1 flex items-center gap-3 ${allDone ? "" : "invisible"}`}
-            >
-              <Icon name="check" class="size-4 flex-none" />
-              <span>
-                {/* Short, like "0 of 1 delivered" before it, so it fits beside Notify me on a phone;
+              <span
+                class={`col-start-1 row-start-1 flex items-center gap-3 ${allDone ? "" : "invisible"}`}
+              >
+                <Icon name="check" class="size-4 flex-none" />
+                <span>
+                  {/* Short, like "0 of 1 delivered" before it, so it fits beside Notify me on a phone;
                     the status line says it in full. */}
-                <span class="block">{t.send.doneTitle}</span>
-                <span class="block font-normal">{t.send.closeTab}</span>
+                  <span class="block">{t.send.doneTitle}</span>
+                  <span class="block font-normal">{t.send.closeTab}</span>
+                </span>
               </span>
-            </span>
-          </p>
-          {/* Once there is a link, Notify me while sending, the browser's answer and Send another
+            </p>
+            {/* Once there is a link, Notify me while sending, the browser's answer and Send another
               file once done share one grid cell. Send another is only there once done, so while
               sending the cell is as narrow as the bell and the bar's text keeps to two rows. */}
-          {(hasRecipients || canAskToNotify || notifyAnswer) && (
-            <div class="grid flex-none items-center justify-items-end">
-              <Button
-                id={id("notify-me")}
-                type="button"
-                variant="outline"
-                size="sm"
-                // A bell alone on a phone, where the bar's text needs the room; the bell and the
-                // words from sm up. The words stay for screen readers either way.
-                className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${unfinished && canAskToNotify ? "" : "invisible"}`}
-                title={t.send.notifyMe}
-                onClick={async () => {
-                  const answer = await askToNotify();
-                  if (answer !== "default") {
-                    setCanAskToNotify(false);
-                    setNotifyAnswer(answer === "granted" ? "on" : "blocked");
-                  }
-                }}
-              >
-                <Icon name="bell" class="size-4" />
-                <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
-              </Button>
-              {notifyAnswer && (
-                // Takes the focus the button held, and tells the sender what the browser answered.
-                // Invisible while the button is offered again after an earlier answer.
-                <p
-                  id={id("notify-answer")}
-                  tabIndex={-1}
-                  role="status"
-                  // Narrow, so the answer wraps instead of taking much width from the bar's text.
-                  class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
-                >
-                  {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
-                </p>
-              )}
-              {hasRecipients && allDone && (
-                // Only once every link has delivered, so it never cuts a transfer off.
+            {(hasRecipients || canAskToNotify || notifyAnswer) && (
+              <div class="grid flex-none items-center justify-items-end">
                 <Button
+                  id={id("notify-me")}
                   type="button"
+                  variant="outline"
                   size="sm"
-                  className="col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60"
-                  onClick={onSendAnother}
+                  // A bell alone on a phone, where the bar's text needs the room; the bell and the
+                  // words from sm up. The words stay for screen readers either way.
+                  className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${unfinished && canAskToNotify ? "" : "invisible"}`}
+                  title={t.send.notifyMe}
+                  onClick={async () => {
+                    const answer = await askToNotify();
+                    if (answer !== "default") {
+                      setCanAskToNotify(false);
+                      setNotifyAnswer(answer === "granted" ? "on" : "blocked");
+                    }
+                  }}
                 >
-                  {(text ? t.secret : t.send).sendAnother}
+                  <Icon name="bell" class="size-4" />
+                  <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
                 </Button>
-              )}
-            </div>
-          )}
-          {/* At the bar's end on every step; a closed dialog takes no space, an open one is in the top layer. */}
-          <TraceDrawer
-            onGreen={allDone}
-            visible={shown}
-            traces={traces}
-            facts={
-              file && !text
-                ? [
-                    [t.common.size, t.format.bytes(file.size)],
-                    [t.common.type, file.type || t.common.typeMissing],
-                    [
-                      "SHA-256",
-                      hash.status === "ready" ? <code>{hash.hex}</code> : t.send.hashPending,
-                    ],
-                  ]
-                : []
-            }
-          />
+                {notifyAnswer && (
+                  // Takes the focus the button held, and tells the sender what the browser answered.
+                  // Invisible while the button is offered again after an earlier answer.
+                  <p
+                    id={id("notify-answer")}
+                    tabIndex={-1}
+                    role="status"
+                    // Narrow, so the answer wraps instead of taking much width from the bar's text.
+                    class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || allDone ? "invisible" : ""} text-muted-foreground`}
+                  >
+                    {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
+                  </p>
+                )}
+                {hasRecipients && allDone && (
+                  // Only once every link has delivered, so it never cuts a transfer off.
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="col-start-1 row-start-1 bg-white text-emerald-800 hover:bg-white/90 focus-visible:border-white focus-visible:ring-white/60"
+                    onClick={onSendAnother}
+                  >
+                    {(text ? t.secret : t.send).sendAnother}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          {/* At the bar's end on every step. */}
+          <div class="col-start-3 flex justify-end pl-2 sm:pl-3">
+            <TraceDrawer
+              onGreen={allDone}
+              visible={shown}
+              traces={traces}
+              facts={
+                file && !text
+                  ? [
+                      [t.common.size, t.format.bytes(file.size)],
+                      [t.common.type, file.type || t.common.typeMissing],
+                      [
+                        "SHA-256",
+                        hash.status === "ready" ? <code>{hash.hex}</code> : t.send.hashPending,
+                      ],
+                    ]
+                  : []
+              }
+            />
+          </div>
         </div>
       </div>
     </Page>

@@ -10,6 +10,7 @@ import {
   chooseFile,
   expect,
   type Observed,
+  openTraces,
   test,
 } from "../src/fixtures.ts";
 import { coturnLog, serverStderrLog, serverStdoutLog } from "../src/paths.ts";
@@ -34,8 +35,6 @@ const loopbackRelay =
   "Firefox pairs the local coturn's 127.0.0.1 relay candidates with no LAN candidate and ends ICE at once, before the sender falls back to the relay";
 
 const sha256Hex = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
-/** A page's trace log, in the panel that is open beside the page on a wide screen. */
-const traceLog = (page: Page) => page.getByRole("dialog", { name: "Traces" });
 
 /** What a run log has written since `start` bytes. */
 const since = async (file: string, start: number) => (await readFile(file)).subarray(start);
@@ -163,7 +162,7 @@ for (const transport of ["udp", "tcp"] as const) {
     expect(sha256Hex(await readFile(await download.path()))).toBe(sha256Hex(file.bytes));
 
     for (const page of [sender, recipient]) {
-      const log = traceLog(page);
+      const log = await openTraces(page);
       await expect(log).toContainText(/Connection, [^:]*: Route: through our relay\./);
       await expect(log).toContainText(
         "Relay, Memory, not kept: Carries the encrypted data between the two browsers.",

@@ -1411,61 +1411,73 @@ function ReceiveBar({
           />
         )}
       </div>
-      <div class="relative mx-auto flex min-h-[3.95rem] max-w-xl items-center gap-2 sm:gap-3">
-        {/* The step's heading says the same, so this is no live region. */}
-        <p class="m-0 flex min-w-0 flex-1 items-center gap-3 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere">
-          {done ? (
-            <Icon name="check" class="size-4 flex-none" />
-          ) : (
-            <span class="flex size-4 flex-none items-center justify-center" aria-hidden="true">
-              <span
-                class={
-                  waiting
-                    ? "size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
-                    : "size-2 rounded-full bg-muted-foreground"
-                }
-              />
+      {/* The row with the text and Notify me is centred with the page's column, at most as wide;
+          the Traces button is at the bar's right edge. On a phone the row takes what the button
+          leaves. */}
+      <div class="relative grid grid-cols-[1fr_minmax(0,36rem)_1fr] items-center">
+        <div
+          data-bar-row
+          class="col-start-2 flex min-h-[3.95rem] min-w-0 items-center gap-2 sm:gap-3"
+        >
+          {/* The step's heading says the same, so this is no live region. */}
+          <p class="m-0 flex min-w-0 flex-1 items-center gap-3 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere">
+            {done ? (
+              <Icon name="check" class="size-4 flex-none" />
+            ) : (
+              <span class="flex size-4 flex-none items-center justify-center" aria-hidden="true">
+                <span
+                  class={
+                    waiting
+                      ? "size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+                      : "size-2 rounded-full bg-muted-foreground"
+                  }
+                />
+              </span>
+            )}
+            <span>
+              <span class="block">{main}</span>
+              {sub && (
+                <span class={`block font-normal ${done ? "" : "text-muted-foreground"}`}>
+                  {sub}
+                </span>
+              )}
             </span>
-          )}
-          <span>
-            <span class="block">{main}</span>
-            {sub && (
-              <span class={`block font-normal ${done ? "" : "text-muted-foreground"}`}>{sub}</span>
-            )}
-          </span>
-        </p>
-        {/* Notify me and the browser's answer share one grid cell, the hidden one keeping its
+          </p>
+          {/* Notify me and the browser's answer share one grid cell, the hidden one keeping its
             space, so the bar's text doesn't move as they swap. */}
-        {(canAskToNotify || notifyAnswer) && (
-          <div class="grid flex-none items-center justify-items-end">
-            <Button
-              id={`${notifyId}-me`}
-              type="button"
-              variant="outline"
-              size="sm"
-              // A bell alone on a phone, the bell and the words from sm up, as on the send page.
-              className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${waiting && canAskToNotify ? "" : "invisible"}`}
-              title={t.send.notifyMe}
-              onClick={onNotify}
-            >
-              <Icon name="bell" class="size-4" />
-              <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
-            </Button>
-            {notifyAnswer && (
-              // Takes the focus the button held, and tells the recipient what the browser answered.
-              <p
-                id={`${notifyId}-answer`}
-                tabIndex={-1}
-                role="status"
-                class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || done ? "invisible" : ""} text-muted-foreground`}
+          {(canAskToNotify || notifyAnswer) && (
+            <div class="grid flex-none items-center justify-items-end">
+              <Button
+                id={`${notifyId}-me`}
+                type="button"
+                variant="outline"
+                size="sm"
+                // A bell alone on a phone, the bell and the words from sm up, as on the send page.
+                className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${waiting && canAskToNotify ? "" : "invisible"}`}
+                title={t.send.notifyMe}
+                onClick={onNotify}
               >
-                {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
-              </p>
-            )}
-          </div>
-        )}
-        {/* The file's name never shows in the traces; its size and type are on the page already. */}
-        <TraceDrawer onGreen={done} visible={visible} traces={traces} facts={[]} />
+                <Icon name="bell" class="size-4" />
+                <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
+              </Button>
+              {notifyAnswer && (
+                // Takes the focus the button held, and tells the recipient what the browser answered.
+                <p
+                  id={`${notifyId}-answer`}
+                  tabIndex={-1}
+                  role="status"
+                  class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || done ? "invisible" : ""} text-muted-foreground`}
+                >
+                  {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        <div class="col-start-3 flex justify-end pl-2 sm:pl-3">
+          {/* The file's name never shows in the traces; its size and type are on the page already. */}
+          <TraceDrawer onGreen={done} visible={visible} traces={traces} facts={[]} />
+        </div>
       </div>
     </div>
   );

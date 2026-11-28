@@ -650,9 +650,6 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** How many TraceDrawers show their panel beside the page, so one page hiding doesn't take the room from another's. */
-let panels = 0;
-
 /** A page's "Traces": an icon button, for its bottom bar, that shows and hides the file facts and the trace log, in a panel beside the page on a wide screen and in a drawer on a narrower one. */
 export function TraceDrawer({
   facts,
@@ -664,7 +661,7 @@ export function TraceDrawer({
   traces: Log;
   /** The file's facts, shown above the log; empty for a secret. */
   facts: ReadonlyArray<readonly [string, ComponentChildren]>;
-  /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it, and hides its panel, which is outside the page. */
+  /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it, and drops its panel, which is outside the page. */
   visible: boolean;
   /** True while the bar behind the button is green, with white text. */
   onGreen: boolean;
@@ -672,58 +669,49 @@ export function TraceDrawer({
   const { t } = useI18n();
   const left = tracesLeft(traces);
   const name = t.traces.button(left);
-  // shadcn's Sheet. On a wide screen it is a panel beside the page that isn't modal, open until
-  // the button or Close hides it; on a narrower one the button opens it as a modal drawer.
+  // shadcn's Sheet. On a wide screen the button shows it as a panel beside the page that isn't
+  // modal, until the button or Close hides it; on a narrower one the button opens it as a modal drawer.
   const wide = useMediaQuery(WIDE);
-  const [pinned, setPinned] = useState(true);
+  const [pinned, setPinned] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const open = visible && (wide ? pinned : drawer);
-  const panel = visible && wide && pinned;
+  // App's slot beside the pages, which holds the panel on a wide screen.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById("traces-slot")), []);
   useEffect(() => {
     // A hidden page closes the drawer, so it never leaves the next page inert.
     if (!visible) {
       setDrawer(false);
     }
   }, [visible]);
-  useEffect(() => {
-    // styles.css makes room for the panel beside the page and the bottom bar. Counted, because
-    // the page that hides may let go after the page that shows took the room.
-    if (!panel) {
-      return;
-    }
-    const root = document.documentElement;
-    panels += 1;
-    root.setAttribute("data-traces-panel", "");
-    return () => {
-      panels -= 1;
-      root.toggleAttribute("data-traces-panel", panels > 0);
-    };
-  }, [panel]);
   return (
     <Sheet
       open={open}
       onOpenChange={(next) => (wide ? setPinned(next) : setDrawer(next))}
       modal={!wide}
     >
-      {/* 40 × 40, no taller than the bar's two lines of text. The badge counts the traces still
-          left; its number is in the button's name, so screen readers hear it there and not twice. */}
+      {/* 40 × 40, no taller than the bar's two lines of text; from lg the icon and the word, which
+          starts the button's name. The badge counts the traces still kept; its number is in the
+          button's name, so screen readers hear it there and not twice. */}
       <SheetTrigger
         aria-label={name}
         title={name}
         class={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "relative size-10 flex-none cursor-pointer",
+          "relative size-10 flex-none cursor-pointer lg:w-auto lg:gap-2 lg:px-3",
           onGreen
-            ? "text-white hover:bg-white/15 hover:text-white focus-visible:border-white focus-visible:ring-white/60 dark:hover:bg-white/15"
-            : "text-muted-foreground",
+            ? "text-white hover:bg-white/15 hover:text-white focus-visible:border-white focus-visible:ring-white/60 aria-expanded:bg-white/15 aria-expanded:text-white dark:hover:bg-white/15"
+            : // Open, a light tint rather than the ghost button's solid one.
+              "text-muted-foreground aria-expanded:bg-foreground/10 aria-expanded:text-muted-foreground",
         )}
       >
         <Icon name="footprints" class="size-5" />
+        <span class="hidden lg:inline">{t.traces.title}</span>
         {left > 0 && (
           <Badge
             aria-hidden="true"
             className={cn(
-              "pointer-events-none absolute top-0 right-0 h-4 min-w-4 px-1 text-[0.625rem] tabular-nums",
+              "pointer-events-none absolute top-0 right-0 h-4 min-w-4 px-1 text-[0.625rem] tabular-nums lg:-top-1.5 lg:-right-1.5",
               onGreen && "bg-white text-emerald-800",
             )}
           >
@@ -737,10 +725,13 @@ export function TraceDrawer({
           side="right"
           showCloseButton={false}
           aria-describedby={undefined}
-          // The whole screen on a phone; a drawer from the right from sm up; the panel from lg.
-          className="w-full gap-0 overflow-y-auto p-6 text-[0.9rem] max-sm:border-l-0 lg:w-[24rem] lg:shadow-none [&_code]:text-[0.85rem]"
-          // The panel opens with the page and stays beside it: it takes no focus and a click on the
-          // page doesn't close it.
+          container={wide ? slot : undefined}
+          // The whole screen on a phone; a drawer from the right from sm up. From lg the panel, in
+          // the slot in the page's flow: it sticks under the sticky header, ends above the bottom
+          // bar, and stops at the footer with the slot, so it never lags behind a scroll.
+          className="w-full gap-0 overflow-y-auto overscroll-none p-6 text-[0.9rem] max-sm:border-l-0 lg:sticky lg:inset-auto lg:top-[calc(4rem+1px)] lg:z-30 lg:mt-[calc(4rem+1px)] lg:h-[calc(100dvh-4rem-1px-var(--bar-height))] lg:max-w-none lg:shadow-none [&_code]:text-[0.85rem]"
+          // The panel stays beside the page: it takes no focus and a click on the page doesn't
+          // close it.
           onOpenAutoFocus={(event) => wide && event.preventDefault()}
           onInteractOutside={(event) => wide && event.preventDefault()}
         >

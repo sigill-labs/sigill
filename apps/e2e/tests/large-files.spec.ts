@@ -34,8 +34,9 @@ for (const { gb, minutes } of [
       const { page: sender } = await actor("sender");
       await sender.goto("/send");
       await chooseFile(sender, file.path);
-      // The traces panel, with the file's facts, is open beside the page on a wide screen.
+      await sender.getByRole("button", { name: /^Traces/ }).click();
       await expect(sender.getByText(sha256)).toBeVisible({ timeout: gb * 2 * 60_000 });
+      await sender.getByRole("button", { name: "Close" }).click();
       const name = makeName(leaks, canary, "Anna");
       await sender.getByLabel("Who is it for?").fill(name);
       await sender.getByRole("button", { name: "Add recipient", exact: true }).click();
