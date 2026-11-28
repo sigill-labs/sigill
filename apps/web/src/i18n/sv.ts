@@ -68,6 +68,20 @@ const traces: TraceTexts = {
     peer: (role) => (role === "sender" ? "Mottagarens webbläsare" : "Avsändarens webbläsare"),
     connection: () => "Anslutningen",
   },
+  labels: {
+    ipAddress: "IP-adress",
+    linkId: "Länk-ID",
+    timing: "Tidpunkt",
+    relayCredentials: "Inloggningsuppgifter till reläet",
+    encryptedMessages: "Krypterade meddelanden",
+    encryptedData: "Krypterad data",
+    token: "Slumpmässigt värde",
+    logLine: "Loggrad",
+    linkAndKey: "Länk och nyckel",
+    file: "Fil",
+    secret: "Hemlighet",
+    route: "Väg",
+  },
   what: {
     connected: () =>
       "Den här sidan anslöt. Servern ser sidans IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",

@@ -172,11 +172,11 @@ async function receive(
   await page.getByText("Technical details").click();
   await expect(page.getByText(`${file.size.toLocaleString("en-US")} bytes`)).toBeVisible();
   await expect(page.getByRole("region", { name: "Traces" })).toContainText(
-    "Our server: Paired this page with the sender's on link ID",
+    "Our server: IP address: Paired this page with the sender's on link ID",
   );
   if (sender) {
     await expect(sender.getByRole("dialog", { name: "Traces", includeHidden: true })).toContainText(
-      "Our server: Paired a recipient's page with link ID",
+      "Our server: IP address: Paired a recipient's page with link ID",
     );
   }
   const bytes = await download(page, file);
@@ -266,7 +266,7 @@ test("delivers a file to two recipients with a verified checksum", async ({
   for (const link of links) {
     await expect(senderTraces).toContainText(`link ID ${prefix(link)}`);
   }
-  await expect(senderTraces).toContainText(/Connection: Direct, /);
+  await expect(senderTraces).toContainText(/Connection: Route: Direct, /);
   await expect(senderTraces).not.toContainText(file.name);
 
   const recipientTraces = received[0]?.page.getByRole("region", { name: "Traces" });
@@ -274,7 +274,9 @@ test("delivers a file to two recipients with a verified checksum", async ({
     throw new Error("no recipient");
   }
   // Once the transfer is done, this page's connection to our server has closed.
-  await expect(recipientTraces).toContainText(/Our server: This page connected\.[^)]*\(gone at /);
+  await expect(recipientTraces).toContainText(
+    /Our server: IP address: This page connected\.[^)]*\(gone at /,
+  );
   await expect(recipientTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
   await expect(recipientTraces).toContainText(`link ID ${prefix(links[0] ?? "")}`);
   await expect(recipientTraces).not.toContainText(file.name);
@@ -663,7 +665,7 @@ test("a waiting recipient sees when the sender goes offline", async ({ demo, lea
   await sender.close();
   await expect(recipient.getByText("The sender's page is closed")).toBeVisible();
   await expect(recipient.getByRole("region", { name: "Traces" })).toContainText(
-    /Our server: This page connected\.[^)]*\(gone at /,
+    /Our server: IP address: This page connected\.[^)]*\(gone at /,
   );
 });
 

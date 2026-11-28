@@ -3,7 +3,7 @@
 
 import type { ConnectionPath, ErrorCode, LogFields, RefusedReason } from "@fidant/protocol";
 import type { Line } from "../how/traces.ts";
-import type { Part, Role, Stated, What } from "../lib/trace-log.ts";
+import type { Label, Part, Role, Stated, What } from "../lib/trace-log.ts";
 
 /** A place on the /how/traces explorer and the traces it keeps. */
 export type Place = { name: string; kept: string; never: string; lines: readonly Line[] };
@@ -63,6 +63,8 @@ export type TraceTexts = {
   note: string;
   empty: string;
   parts: Record<Part, (role: Role) => string>;
+  /** The tag on each line that names the kind of data it holds. */
+  labels: Record<Label, string>;
   what: {
     [K in What["kind"]]: (what: Extract<What, { kind: K }>, context: TraceContext) => string;
   };
@@ -104,6 +106,20 @@ const traces: TraceTexts = {
     browser: () => "This browser",
     peer: (role) => (role === "sender" ? "The recipient's browser" : "The sender's browser"),
     connection: () => "Connection",
+  },
+  labels: {
+    ipAddress: "IP address",
+    linkId: "Link ID",
+    timing: "Timing",
+    relayCredentials: "Relay credentials",
+    encryptedMessages: "Encrypted messages",
+    encryptedData: "Encrypted data",
+    token: "Token",
+    logLine: "Log line",
+    linkAndKey: "Link and key",
+    file: "File",
+    secret: "Secret",
+    route: "Route",
   },
   what: {
     connected: () =>

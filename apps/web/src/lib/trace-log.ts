@@ -139,6 +139,62 @@ const PARTS: Record<What["kind"], Part> = {
   path: "connection",
 };
 
+/** The kind of data a line's trace is, shown as a tag on the line. */
+export type Label =
+  | "ipAddress"
+  | "linkId"
+  | "timing"
+  | "relayCredentials"
+  | "encryptedMessages"
+  | "encryptedData"
+  | "token"
+  | "logLine"
+  | "linkAndKey"
+  | "file"
+  | "secret"
+  | "route";
+
+// Keyed by kind, so a new kind fails the typecheck until it is labelled here. `received` and
+// `delivered` are a file or a secret, so labelOf picks theirs; the marker has none.
+const LABELS: Record<Exclude<What["kind"], "received" | "delivered">, Label | undefined> = {
+  connected: "ipAddress",
+  holdsLink: "linkId",
+  holdsLinkMaybe: "linkId",
+  alreadyHosted: "linkId",
+  paired: "ipAddress",
+  rejoined: "timing",
+  credentials: "relayCredentials",
+  relayed: "encryptedMessages",
+  serverToken: "token",
+  logHost: "logLine",
+  logJoined: "logLine",
+  logRelay: "logLine",
+  logRefused: "logLine",
+  logLeft: "logLine",
+  logHostGone: "logLine",
+  logHostClosed: "logLine",
+  logPath: "logLine",
+  logResume: "logLine",
+  logError: "logLine",
+  stunSees: "ipAddress",
+  relayAdded: "ipAddress",
+  relayCarries: "encryptedData",
+  linkKey: "linkAndKey",
+  relayCredentials: "relayCredentials",
+  browserToken: "token",
+  addressBar: "linkAndKey",
+  newTransfer: undefined,
+  path: "route",
+};
+
+/** The kind of data a line holds, or undefined for the marker that starts a new transfer. */
+export function labelOf(what: What): Label | undefined {
+  if (what.kind === "received" || what.kind === "delivered") {
+    return what.secret ? "secret" : "file";
+  }
+  return LABELS[what.kind];
+}
+
 /**
  * One line. `at` is when this page saw the event, in ms since the epoch. `open` names a line that
  * a later event can close; it holds no more than the line itself.

@@ -560,8 +560,8 @@ export function PathLine({ path }: { path: OpenPath }) {
 }
 
 /**
- * This page's traces, oldest first, each with when this page saw it, who holds it, what and until
- * when. No live region: a line per signaling message would flood a screen reader.
+ * This page's traces, oldest first, each with when this page saw it, who holds it, a tag
+ * naming the kind of data, what and until when. No live region: a line per signaling message would flood a screen reader.
  */
 export function TraceLog({ log }: { log: Log }) {
   const { t, lang } = useI18n();
@@ -583,8 +583,17 @@ export function TraceLog({ log }: { log: Log }) {
                 >
                   {line.time}
                 </time>{" "}
-                <span class="font-medium">{line.part}:</span> {line.what}{" "}
-                <span class="text-muted-foreground">({line.until})</span>
+                <span class="font-medium">{line.part}:</span>{" "}
+                {line.label !== undefined && (
+                  <>
+                    <span class="inline-block rounded-full border border-border bg-muted px-2 text-xs leading-5 text-foreground">
+                      {line.label}
+                    </span>
+                    {/* The tag reads as its own phrase, not run into the sentence after it. */}
+                    <span class="sr-only">:</span>{" "}
+                  </>
+                )}
+                {line.what} <span class="text-muted-foreground">({line.until})</span>
               </li>
             );
           })}

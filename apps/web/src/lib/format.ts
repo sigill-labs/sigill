@@ -2,7 +2,7 @@
 
 import type { TraceContext } from "../i18n/en.ts";
 import { type Lang, MESSAGES } from "../i18n/language.ts";
-import type { Role, TraceEntry, What } from "./trace-log.ts";
+import { labelOf, type Role, type TraceEntry, type What } from "./trace-log.ts";
 
 /** Lowercase hex, as `shasum -a 256` prints it. */
 export function toHex(bytes: Uint8Array): string {
@@ -92,19 +92,24 @@ export function formatClock(ms: number): string {
     .join(":");
 }
 
-/** A trace log line in words: its time, the part that holds the trace, what it holds and until when. */
+/**
+ * A trace log line in words: its time, the part that holds the trace, the kind of data it is
+ * (undefined for the marker that starts a new transfer), what it holds and until when.
+ */
 export function describeTrace(
   entry: TraceEntry,
   role: Role,
   lang: Lang,
-): { time: string; part: string; what: string; until: string } {
+): { time: string; part: string; label: string | undefined; what: string; until: string } {
   const texts = MESSAGES[lang].traces;
   // Each kind's text takes its own kind of line; TypeScript can't follow that through the lookup.
   const what = texts.what[entry.what.kind] as (what: What, context: TraceContext) => string;
   const { until } = entry;
+  const label = labelOf(entry.what);
   return {
     time: formatClock(entry.at),
     part: texts.parts[entry.part](role),
+    label: label === undefined ? undefined : texts.labels[label],
     what: what(entry.what, { role, size: (bytes) => formatBytes(bytes, lang) }),
     until:
       until.kind === "seen"

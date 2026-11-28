@@ -114,6 +114,11 @@ test("every kind of line reads in both languages", () => {
             const label = `${lang} ${role} ${part} ${JSON.stringify(what)} ${JSON.stringify(until)}`;
             assert.equal(line.time, "14:02:03", label);
             check(line.part, label);
+            if (what.kind === "newTransfer") {
+              assert.equal(line.label, undefined, label);
+            } else {
+              check(line.label ?? "", label);
+            }
             check(line.what, label);
             check(line.until, label);
           }
@@ -132,6 +137,7 @@ test("lines show link IDs as their prefix and an ellipsis, and sizes in words", 
     "en",
   );
   assert.equal(english.what, "Link ID abc123…, never the part of the link that unlocks it.");
+  assert.equal(english.label, "Link ID");
   assert.equal(english.until, "kept in our server's log for 30 days");
   const relayed = describeTrace(
     { at, part: "server", what: { kind: "relayed", link: "abc123", count: 2, bytes: 9200 }, until },
@@ -162,4 +168,14 @@ test("the other browser is named by whose page it is", () => {
   assert.equal(describeTrace(entry, "sender", "en").part, "The recipient's browser");
   assert.equal(describeTrace(entry, "sender", "en").until, "until they delete it");
   assert.equal(describeTrace(entry, "recipient", "sv").part, "Avsändarens webbläsare");
+});
+
+test("a received or delivered line is labelled a file or a secret", () => {
+  const until: Until = { kind: "stays" };
+  const label = (what: What, lang: Lang) =>
+    describeTrace({ at: 0, part: "browser", what, until }, "recipient", lang).label;
+  assert.equal(label({ kind: "received", secret: false }, "en"), "File");
+  assert.equal(label({ kind: "received", secret: true }, "sv"), "Hemlighet");
+  assert.equal(label({ kind: "delivered", secret: true }, "en"), "Secret");
+  assert.equal(label({ kind: "newTransfer" }, "en"), undefined);
 });

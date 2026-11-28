@@ -165,11 +165,11 @@ for (const transport of ["udp", "tcp"] as const) {
 
     for (const page of [sender, recipient]) {
       const log = traceLog(page, page === sender);
-      await expect(log).toContainText("Connection: Through our relay.");
+      await expect(log).toContainText("Connection: Route: Through our relay.");
       await expect(log).toContainText(
-        "Our relay: Carries the encrypted data between the two browsers.",
+        "Our relay: Encrypted data: Carries the encrypted data between the two browsers.",
       );
-      await expect(log).not.toContainText("Connection: Direct");
+      await expect(log).not.toContainText("Connection: Route: Direct");
       // The log and the Why? text also say "through our relay".
       await expect(page.getByText("Through our relay", { exact: true })).toBeVisible();
       // The send page shows the link at once; the receive page explains under "Why?".
