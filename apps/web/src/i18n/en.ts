@@ -1301,7 +1301,7 @@ export const en = {
             ],
             [
               "",
-              "The tab's icon, in the browser's store of page icons, beside the history entry of each page this tab showed, until you clear history. Chrome keeps the icon as it last was: a green dot while a transfer was open, a check once it was done or a red stop sign where the page needed a secure connection. Firefox and Safari keep the icon the page opened with: the logo, or the stop sign. A private window keeps none.",
+              "The tab's icon as it last was, a green dot while a transfer was open, a check once it was done or a red stop sign where the page needed a secure connection, in the browser's store of page icons, beside the history entry of each page this tab showed, until you clear history. In our test on a computer, Chrome kept the last icon, Firefox and Safari seemed to keep only the one a page opened with, and a private window in each kept none. Other browsers were not tested.",
             ],
             [
               "",
@@ -1499,7 +1499,7 @@ export const en = {
             ],
             [
               "",
-              "The tab's icon, in the browser's store of page icons, beside the history entry of each page that tab showed, the link included, until history is cleared. Chrome keeps the icon as it last was: a green dot while the transfer was open, a check once it arrived or a red stop sign where the page needed a secure connection. Firefox and Safari keep the icon the page opened with: the logo, or the stop sign. A private window keeps none.",
+              "The tab's icon as it last was, a green dot while the transfer was open, a check once it arrived or a red stop sign where the page needed a secure connection, in the browser's store of page icons, beside the history entry of each page that tab showed, the link included, until history is cleared. In our test on a computer, Chrome kept the last icon, Firefox and Safari seemed to keep only the one a page opened with, and a private window in each kept none. Other browsers were not tested.",
             ],
             ["", "Their theme and language choice, in the browser's local storage, until cleared."],
           ],
