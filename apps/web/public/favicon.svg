@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <title>Fidant</title>
+  <!-- Flips with the system's theme (docs/decisions/0035-logo-flips-with-the-theme.md). Once the page runs, apps/web/src/lib/favicon.ts follows the site's theme switch instead. -->
   <style>
     rect { fill: #111; }
     .mark { stroke: #fff; fill: #fff; }
