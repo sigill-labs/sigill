@@ -27,7 +27,6 @@ import {
   makeFile,
   messages,
   openSender,
-  receive,
   requestCode,
   sha256Hex,
   test,
