@@ -673,7 +673,7 @@ test("unsendable fails a connecting recipient, frees the link and the next join 
 
 test("events that do not fit the current status are ignored", () => {
   const { state: waiting, linkId } = withRecipient();
-  const outOfPlace: Exclude<SenderAction, { type: "add" | "server-lost" }>[] = [
+  const outOfPlace: Exclude<SenderAction, { type: "add" | "server-lost" | "reset" }>[] = [
     { type: "channel-open", linkId },
     { type: "accepted", linkId },
     { type: "progress", linkId, bytesSent: 10 },
@@ -973,6 +973,27 @@ test("remove drops a recipient and closes its connection if active", () => {
   assert.deepEqual(afterRemove.effects, [
     { type: "refuse", linkId, attempt: A, reason: "unknown" },
   ]);
+});
+
+test("reset empties the list and closes only the active connections", () => {
+  const { state: s0, linkId } = withRecipient();
+  const other = createLink(ORIGIN);
+  const two = update(update(s0, joined(linkId, A)).state, {
+    type: "add",
+    link: other,
+    name: "Bo",
+  }).state;
+  const reset = update(two, { type: "reset" });
+  assert.deepEqual(reset.state.recipients, []);
+  assert.deepEqual(reset.effects, [{ type: "close", linkId }]);
+  assert.deepEqual(hostedLinks(reset.state), []);
+
+  const empty = update(reset.state, { type: "reset" });
+  assert.equal(empty.state, reset.state);
+  assert.deepEqual(empty.effects, []);
+
+  const afterReset = update(reset.state, joined(linkId, B));
+  assert.deepEqual(afterReset.effects, [{ type: "refuse", linkId, attempt: B, reason: "unknown" }]);
 });
 
 test("hostedLinks lists every recipient, delivered ones included", () => {

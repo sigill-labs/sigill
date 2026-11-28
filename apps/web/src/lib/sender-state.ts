@@ -253,6 +253,8 @@ export type SenderState = { readonly recipients: readonly Recipient[] };
 export type SenderAction =
   | { type: "add"; link: Link; name: string; email?: string; check?: boolean }
   | { type: "remove"; linkId: string }
+  /** Empties the list, as `remove` on every recipient, so the sender can start on a new file or secret. */
+  | { type: "reset" }
   | {
       type: "joined";
       linkId: string;
@@ -412,6 +414,15 @@ export function update(state: SenderState, action: SenderAction): SenderUpdate {
       ...(action.check ? { check: true as const } : {}),
     };
     return { state: { recipients: [...state.recipients, recipient] }, effects: [] };
+  }
+  if (action.type === "reset") {
+    if (state.recipients.length === 0) {
+      return { state, effects: [] };
+    }
+    const effects: SenderEffect[] = state.recipients
+      .filter(isActive)
+      .map((r) => ({ type: "close", linkId: r.linkId }));
+    return { state: { recipients: [] }, effects };
   }
   if (action.type === "server-lost") {
     const effects: SenderEffect[] = [];
