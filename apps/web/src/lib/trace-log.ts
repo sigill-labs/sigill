@@ -83,7 +83,8 @@ export type What =
   | { kind: "logJoined"; link: string }
   | { kind: "logRelay"; link: string; count: number; bytes: number }
   | { kind: "logRefused"; reason: RefusedReason; link: string }
-  | { kind: "logLeft"; link: string }
+  /** `later`: our server writes it if a dropped recipient's page doesn't take its place back within the hold. */
+  | { kind: "logLeft"; link: string; later: boolean }
   /** `later`: our server writes it when it lets go of a dropped connection's links, if the recipient is still there. */
   | { kind: "logHostGone"; link: string; later: boolean }
   | { kind: "logHostClosed"; links: number | undefined }
@@ -207,10 +208,13 @@ export type TraceEntry = {
   readonly open?: string;
 };
 
-/** How many traces the log still shows as left: every line but the new-transfer marker that this page hasn't seen end. */
+/** How many traces the log still shows as left: every line but the new-transfer marker that this page hasn't seen end and that isn't kept to begin with. */
 export function tracesLeft(log: TraceLog): number {
   return log.entries.filter(
-    (entry) => entry.what.kind !== "newTransfer" && entry.until.kind !== "seen",
+    (entry) =>
+      entry.what.kind !== "newTransfer" &&
+      entry.until.kind !== "seen" &&
+      !(entry.until.kind === "stated" && entry.until.how === "notKept"),
   ).length;
 }
 
@@ -385,7 +389,13 @@ function fromReceived(message: ServerMessage): Signal | undefined {
   }
 }
 
-const SEEN_ON_CLOSE = new Set<What["kind"]>(["connected", "holdsLink", "paired", "serverToken"]);
+const SEEN_ON_CLOSE = new Set<What["kind"]>([
+  "connected",
+  "holdsLink",
+  "holdsLinkMaybe",
+  "paired",
+  "serverToken",
+]);
 
 /** Adds the lines for an event. Returns a new log; the old one is left as it was. */
 export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog {
@@ -469,7 +479,19 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
             entry.what.kind === "paired" &&
             !(held && armed.includes(entry.what.link))
           ) {
-            add({ kind: "logLeft", link: entry.what.link }, stated("log30d"));
+            add({ kind: "logLeft", link: entry.what.link, later: false }, stated("log30d"));
+          }
+        }
+        // A held recipient is let go after the hold, unless this page takes its place back.
+        if (held) {
+          for (const entry of entries) {
+            if (
+              entry.open !== undefined &&
+              entry.what.kind === "paired" &&
+              armed.includes(entry.what.link)
+            ) {
+              add({ kind: "logLeft", link: entry.what.link, later: true }, stated("log30d"));
+            }
           }
         }
       }
@@ -624,7 +646,7 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
           }
           refusing = without(refusing, message.link);
         }
-        add({ kind: "logLeft", link: message.link }, stated("log30d"));
+        add({ kind: "logLeft", link: message.link, later: false }, stated("log30d"));
         break;
       }
       case "refused":
@@ -696,6 +718,30 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
         if (message.token) {
           if (!armed.includes(message.link)) {
             armed = [...armed, message.link];
+          }
+          if (asked) {
+            // The server rebound this side of the pairing to this socket, which the old socket's
+            // close had ended on this page, so the pairing is open again. A page that never saw
+            // the pairing has nothing to reopen.
+            const was = entries.some(
+              (entry) => entry.what.kind === "paired" && entry.what.link === message.link,
+            );
+            if (was && !isOpen(`pair:${message.link}`)) {
+              add(
+                { kind: "paired", link: message.link },
+                stated("connection"),
+                `pair:${message.link}`,
+              );
+            }
+          }
+          if (asked && log.role === "recipient") {
+            // The old socket's tentative line is not written: the server no longer lets go.
+            const index = lastIndex(
+              (what) => what.kind === "logLeft" && what.later && what.link === message.link,
+            );
+            if (index >= 0) {
+              entries.splice(index, 1);
+            }
           }
           if (asked && log.role === "sender") {
             // The server made this socket a host of the link when it took the sender's side over.

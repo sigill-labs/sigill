@@ -268,7 +268,6 @@ export function SendPage({
   // Each open check's number, by link ID: on screen only, gone with its connection.
   const [checks, setChecks] = useState<Readonly<Record<string, CheckView>>>({});
   const [emailError, setEmailError] = useState(false);
-  // ponytail: sticky for the page, since the server saw the key and keeps email counts for an hour
   const [fileError, setFileError] = useState<ErrorOf<"fileError">>("");
   const [from, setFrom] = useState("");
   const [fromError, setFromError] = useState<ErrorOf<"fromError">>("");

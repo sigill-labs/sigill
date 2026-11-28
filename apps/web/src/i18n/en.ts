@@ -129,9 +129,9 @@ const traces: TraceTexts = {
       "This page connected. It sees this page's IP address and the usual browser details any website gets.",
     holdsLink: ({ link }) => `Link ID ${id(link)}, never the part of the link that unlocks it.`,
     holdsLinkMaybe: ({ link }) =>
-      `Link ID ${id(link)}, never the part of the link that unlocks it, unless another connection holds it. Our server doesn't say which link it skipped.`,
+      `Link ID ${id(link)}, unless another connection holds it. Never the part of the link that unlocks it. Our server doesn't say which links it skipped.`,
     alreadyHosted: () =>
-      "Took the other links and skipped one that another connection still holds. This page asks again shortly.",
+      "Took the other links and skipped any that another connection still holds. This page asks again shortly.",
     paired: ({ link }, { role }) =>
       role === "sender"
         ? `Paired a recipient's page with link ID ${id(link)}. It sees both pages' IP addresses.`
@@ -161,10 +161,12 @@ const traces: TraceTexts = {
       role === "sender"
         ? `A line that this page turned a recipient away on link ID ${id(link)}, with the reason: ${traces.refused[reason]}.`
         : `A line that this page was turned away on link ID ${id(link)}, with the reason: ${traces.refused[reason]}.`,
-    logLeft: ({ link }, { role }) =>
+    logLeft: ({ link, later }, { role }) =>
       role === "sender"
         ? `A line that the recipient's page left link ID ${id(link)}.`
-        : `A line that this page left link ID ${id(link)}.`,
+        : later
+          ? `A line that this page left link ID ${id(link)}, if this page doesn't take its place back. Our server writes it when it lets go of this page's place.`
+          : `A line that this page left link ID ${id(link)}.`,
     logHostGone: ({ link, later }, { role }) =>
       role === "sender"
         ? later

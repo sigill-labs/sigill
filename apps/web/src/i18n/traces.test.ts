@@ -34,7 +34,10 @@ const lines: { [K in What["kind"]]: Extract<What, { kind: K }>[] } = {
     reason,
     link: "abc123",
   })),
-  logLeft: [{ kind: "logLeft", link: "abc123" }],
+  logLeft: [
+    { kind: "logLeft", link: "abc123", later: false },
+    { kind: "logLeft", link: "abc123", later: true },
+  ],
   logHostGone: [
     { kind: "logHostGone", link: "abc123", later: false },
     { kind: "logHostGone", link: "abc123", later: true },

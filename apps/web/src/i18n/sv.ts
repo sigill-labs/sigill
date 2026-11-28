@@ -88,9 +88,9 @@ const traces: TraceTexts = {
       "Den här sidan anslöt. Servern ser sidans IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",
     holdsLink: ({ link }) => `Länk-ID ${id(link)}, aldrig den del av länken som låser upp den.`,
     holdsLinkMaybe: ({ link }) =>
-      `Länk-ID ${id(link)}, aldrig den del av länken som låser upp den, om inte en annan anslutning har den. Vår server säger inte vilken länk den hoppade över.`,
+      `Länk-ID ${id(link)}, om inte en annan anslutning har den. Aldrig den del av länken som låser upp den. Vår server säger inte vilka länkar den hoppade över.`,
     alreadyHosted: () =>
-      "Tog emot de andra länkarna och hoppade över en som en annan anslutning fortfarande har. Den här sidan frågar igen om en stund.",
+      "Tog emot de andra länkarna och hoppade över de länkar som en annan anslutning fortfarande har. Den här sidan frågar igen om en stund.",
     paired: ({ link }, { role }) =>
       role === "sender"
         ? `Kopplade ihop en mottagares sida med länk-ID ${id(link)}. Servern ser båda sidornas IP-adresser.`
@@ -121,10 +121,12 @@ const traces: TraceTexts = {
       role === "sender"
         ? `En rad om att den här sidan nekade en mottagare på länk-ID ${id(link)}, med orsaken: ${traces.refused[reason]}.`
         : `En rad om att den här sidan nekades på länk-ID ${id(link)}, med orsaken: ${traces.refused[reason]}.`,
-    logLeft: ({ link }, { role }) =>
+    logLeft: ({ link, later }, { role }) =>
       role === "sender"
         ? `En rad om att mottagarens sida lämnade länk-ID ${id(link)}.`
-        : `En rad om att den här sidan lämnade länk-ID ${id(link)}.`,
+        : later
+          ? `En rad om att den här sidan lämnade länk-ID ${id(link)}, om den här sidan inte tar tillbaka sin plats. Vår server skriver den när den släpper den här sidans plats.`
+          : `En rad om att den här sidan lämnade länk-ID ${id(link)}.`,
     logHostGone: ({ link, later }, { role }) =>
       role === "sender"
         ? later

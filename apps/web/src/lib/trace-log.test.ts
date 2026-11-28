@@ -168,7 +168,10 @@ test("a dropped connection gets the stated hold; a clean close is seen", () => {
     resumeAnswer(true),
     closeSocket(1006),
   );
-  assert.ok(!kinds(armedRecipient).includes("logLeft"));
+  assert.deepEqual(
+    armedRecipient.entries.filter((e) => e.what.kind === "logLeft").map((e) => e.what),
+    [{ kind: "logLeft", link: "abc123", later: true }],
+  );
 });
 
 test("a connection attempt that never opened adds nothing, and a new socket hosts afresh", () => {
@@ -404,6 +407,31 @@ test("already-hosted makes the host's links and count uncertain, and no number i
   // A later host that nothing refused counts again.
   const retry = play("sender", open, host(LINK, OTHER), alreadyHosted, host(LINK, OTHER));
   assert.deepEqual(retry.entries.at(-1)?.what, { kind: "logHost", links: 2 });
+  // The maybe lines end with the connection, like the certain ones.
+  const maybeUntils = (log: TraceLog) =>
+    log.entries.filter((e) => e.what.kind === "holdsLinkMaybe").map((e) => e.until);
+  const cleanClose = play("sender", open, host(LINK, OTHER), alreadyHosted, closeSocket(1000));
+  assert.deepEqual(maybeUntils(cleanClose), [
+    { kind: "seen", at: T0 + 3 },
+    { kind: "seen", at: T0 + 3 },
+  ]);
+  const dropClose = play("sender", open, host(LINK, OTHER), alreadyHosted, closeSocket(1006));
+  assert.deepEqual(maybeUntils(dropClose), [
+    { kind: "stated", how: "dropped" },
+    { kind: "stated", how: "dropped" },
+  ]);
+  // A host on the next socket leaves one open line per link.
+  const rehost = play(
+    "sender",
+    open,
+    host(LINK, OTHER),
+    alreadyHosted,
+    closeSocket(1000),
+    open,
+    host(LINK, OTHER),
+  );
+  const openHosts = rehost.entries.filter((e) => e.open?.startsWith("host:")).map((e) => e.open);
+  assert.deepEqual(openHosts, ["host:abc123", "host:zyx987"]);
 });
 
 test("a refused that does not answer a restart join ends the recipient's pairing for good", () => {
@@ -539,6 +567,65 @@ test("a refusal counts only for the pairing it names, and a held recipient's lef
   ]);
 });
 
+const pairedAndArmed = (role: Role, ...tail: (TraceEvent | SignalMessage)[]) =>
+  play(
+    role,
+    open,
+    ...(role === "sender" ? [host(LINK)] : []),
+    joined([]),
+    resumeAnswer(true),
+    closeSocket(1006),
+    open,
+    resumeSent(),
+    resumeAnswer(true),
+    ...tail,
+  );
+
+test("a takeover reopens the pairing, so a recipient's close logs left", () => {
+  const log = pairedAndArmed("recipient", closeSocket(1000));
+  assert.deepEqual(kinds(log).filter((kind) => kind === "paired").length, 2);
+  assert.deepEqual(log.entries.at(-1)?.what, { kind: "logLeft", link: "abc123", later: false });
+  assert.equal(log.entries.filter((e) => e.what.kind === "paired").at(-1)?.until.kind, "seen");
+});
+
+test("a takeover reopens the pairing for a sender: refuse, close and a dropped link", () => {
+  const refused = pairedAndArmed("sender", refuse());
+  assert.deepEqual(refused.entries.at(-1)?.what, {
+    kind: "logRefused",
+    reason: "used",
+    link: "abc123",
+  });
+  const closed = pairedAndArmed("sender", closeSocket(1000));
+  assert.deepEqual(
+    closed.entries.filter((e) => e.what.kind === "logHostGone").map((e) => e.what),
+    [{ kind: "logHostGone", link: "abc123", later: false }],
+  );
+  const dropped = pairedAndArmed("sender", host(OTHER));
+  assert.deepEqual(
+    dropped.entries.filter((e) => e.what.kind === "logHostGone").map((e) => e.what),
+    [{ kind: "logHostGone", link: "abc123", later: false }],
+  );
+  // The joined that follows a takeover is a rejoin on the open pairing.
+  const rejoined = pairedAndArmed("sender", joined([]));
+  assert.ok(kinds(rejoined).includes("rejoined"));
+  assert.equal(kinds(rejoined).filter((kind) => kind === "paired").length, 2);
+});
+
+test("a page that never saw the pairing has none to reopen", () => {
+  const log = play("recipient", open, resumeSent(), resumeAnswer(true));
+  assert.ok(!kinds(log).includes("paired"));
+});
+
+test("a dropped recipient's left line is written later, and a takeover takes it back", () => {
+  const dropped = play("recipient", open, joined([]), resumeAnswer(true), closeSocket(1006));
+  assert.deepEqual(dropped.entries.at(-1)?.what, { kind: "logLeft", link: "abc123", later: true });
+  const taken = pairedAndArmed("recipient");
+  assert.ok(!taken.entries.some((e) => e.what.kind === "logLeft"));
+  // A clean close of an armed recipient is let go at once.
+  const clean = play("recipient", open, joined([]), resumeAnswer(true), closeSocket(1000));
+  assert.deepEqual(clean.entries.at(-1)?.what, { kind: "logLeft", link: "abc123", later: false });
+});
+
 test("tracesLeft counts the lines not seen to end, without the new-transfer marker", () => {
   assert.equal(tracesLeft(createTraceLog("sender")), 0);
   const log = play(
@@ -550,4 +637,7 @@ test("tracesLeft counts the lines not seen to end, without the new-transfer mark
   // The link key and the browser's token were seen to end; the server's token is stated.
   assert.equal(tracesLeft(log), 1);
   assert.equal(tracesLeft(play("sender", { t: "new-transfer" })), 0);
+  // A line that is passed on or made and not kept is not a trace left.
+  assert.equal(tracesLeft(play("sender", relay())), 1);
+  assert.equal(tracesLeft(play("sender", joined(["turns:t:443"]))), 3);
 });
