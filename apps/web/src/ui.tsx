@@ -684,6 +684,11 @@ export function TraceDrawer({
       setDrawer(false);
     }
   }, [visible]);
+  useEffect(() => {
+    // Crossing lg swaps the panel and the drawer, so neither opens on its own after the other was used.
+    setDrawer(false);
+    setPinned(false);
+  }, [wide]);
   return (
     <Sheet
       open={open}
@@ -734,6 +739,30 @@ export function TraceDrawer({
           // close it.
           onOpenAutoFocus={(event) => wide && event.preventDefault()}
           onInteractOutside={(event) => wide && event.preventDefault()}
+          // Radix hears Escape on the whole document before anything else. While a native modal
+          // dialog (the safety number's) is open over the page, Escape is that dialog's: the panel
+          // stays, and the dialog gets the close request Radix's cancelled key took from it, once
+          // per press, as its own guard against a held key would allow. Otherwise the wide panel
+          // closes on an Escape from inside it only, not on one typed into the page.
+          onEscapeKeyDown={(event) => {
+            const dialog = document.querySelector<HTMLDialogElement>("dialog:modal");
+            if (dialog) {
+              event.preventDefault();
+              if (
+                !event.repeat &&
+                dialog.dispatchEvent(new Event("cancel", { cancelable: true }))
+              ) {
+                dialog.close();
+              }
+              return;
+            }
+            const inPanel =
+              event.target instanceof Element &&
+              event.target.closest('[data-slot="sheet-content"]') !== null;
+            if (wide && !inPanel) {
+              event.preventDefault();
+            }
+          }}
         >
           <div class="flex items-center justify-between gap-4">
             <SheetTitle className="m-0 text-[1.25rem] font-bold">{t.traces.title}</SheetTitle>

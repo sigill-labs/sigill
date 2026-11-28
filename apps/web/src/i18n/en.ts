@@ -58,9 +58,9 @@ export type TraceContext = { role: Role; size: (bytes: number) => string };
  * link IDs, counts, sizes, routes and reason codes.
  */
 export type TraceTexts = {
-  /** Names the drawer and the receive page's disclosure that hold the log. */
+  /** Names the Traces sheet and starts the Traces button's name from lg. */
   title: string;
-  /** The send page's Traces button's name, with how many traces are still kept. */
+  /** Each page's Traces button's name, with how many traces are still kept. */
   button: (left: number) => string;
   note: string;
   empty: string;
@@ -179,7 +179,7 @@ const traces: TraceTexts = {
     logError: ({ code }) =>
       `A line that it rejected a message from this page: ${traces.errors[code]}.`,
     stunSees: () =>
-      "Sees each browser's public IP address when the browser asks it for that address.",
+      "Sees each browser's public IP address when the browser asks it for that address. It keeps no log of it, apart from a temporary log only to fix a fault or stop abuse.",
     relayAdded: () =>
       "Added to this connection, so it can see both browsers' IP addresses, even if a direct route wins.",
     relayCarries: () => "Carries the encrypted data between the two browsers. It can't unlock it.",
@@ -206,7 +206,8 @@ const traces: TraceTexts = {
     notKept: "not kept",
     tab: "until tab closes",
     credential5m: "5 min",
-    relay7d: "up to 7 days",
+    relayNoLog: "not kept; a fault log up to 7 days",
+    relayAllocation: "while the allocation lasts; a fault log up to 7 days",
     history: "until history is cleared",
     peerConnection: "while connected",
     attempt: "until transfer ends",
@@ -1561,6 +1562,10 @@ export const en = {
             [
               "",
               "The tab's icon as it last was, a green dot while the transfer was open, a check once it arrived or a red stop sign where the page needed a secure connection, in the browser's store of page icons, beside the history entry of each page that tab showed, the link included, until history is cleared. In our test on a computer, Chrome kept the last icon, Firefox and Safari seemed to keep only the one a page opened with, and a private window in each kept none. Other browsers were not tested. If they chose Light or Dark under Theme, a logo kept there shows that choice, which the browser keeps anyway.",
+            ],
+            [
+              "",
+              "If they allow notifications: a notification when the file or secret is ready, when the safety number is ready, when it arrived and when it wasn't received, shown and kept by their device's notification list. It says only which of these moments it is and whether it is a file or a secret, never a file name, a person's name, a link or a key.",
             ],
             ["", "Their theme and language choice, in the browser's local storage, until cleared."],
           ],

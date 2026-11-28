@@ -3,7 +3,7 @@
 // never reconnects or skips the check by itself.
 
 import type { Locator, Page } from "@playwright/test";
-import { delivered, expect, makeName, recipientRow } from "../src/fixtures.ts";
+import { delivered, expect, makeName, openTraces, recipientRow } from "../src/fixtures.ts";
 import type { Signal } from "../src/interpose.ts";
 import {
   addEmailed,
@@ -192,6 +192,11 @@ test.describe("safety number", () => {
     for (const name of names) {
       links.push(await addRecipient(leaks, sender, name, true));
     }
+    // The Traces panel, open beside the page on this wide screen, leaves Escape to the dialog.
+    // openSender closed it; it slides out first.
+    await expect(sender.getByRole("dialog", { name: "Traces" })).toHaveCount(0);
+    const traces = await openTraces(sender);
+    await expect(traces).toBeVisible();
     const pages: Page[] = [];
     const numbers: string[] = [];
     for (const [i, name] of names.entries()) {
@@ -199,9 +204,15 @@ test.describe("safety number", () => {
       await page.goto(links[i] as string);
       pages.push(page);
       numbers.push(await sameNumber(sender, name, page));
-      // Put it off, so the dialog is free for the next recipient.
-      await checkDialog(sender, name).getByRole("button", { name: "Not now" }).click();
+      // Put it off, so the dialog is free for the next recipient: once with Escape, once with the button.
+      if (i === 0) {
+        await sender.keyboard.press("Escape");
+      } else {
+        await checkDialog(sender, name).getByRole("button", { name: "Not now" }).click();
+      }
+      await expect(checkDialog(sender, name)).toHaveCount(0);
     }
+    await expect(traces).toBeVisible();
     // Six digits from each connection's own fingerprints: a clash is one chance in a million.
     expect(numbers[0]).not.toBe(numbers[1]);
     // Reopening a card's check shows that recipient's number again.

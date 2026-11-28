@@ -86,7 +86,7 @@ test("joined with TURN URLs adds credentials; without them only the STUN line", 
     "stunSees",
   ]);
   assert.deepEqual(withTurn.entries[3]?.until, { kind: "stated", how: "credential5m" });
-  assert.deepEqual(withTurn.entries[4]?.until, { kind: "stated", how: "relay7d" });
+  assert.deepEqual(withTurn.entries[4]?.until, { kind: "stated", how: "relayNoLog" });
   assert.equal(whoOf(withTurn.entries[4]), "relay");
 
   const stunOnly = play("recipient", joined(["stun:turn.example:3478"]));
@@ -216,7 +216,8 @@ test("links, paths, the relay and delivery end as the page sees them", () => {
   ]);
   assert.deepEqual(log.entries[0]?.what, { kind: "linkKey", link: "abc123" });
   assert.deepEqual(log.entries[0]?.until, { kind: "seen", at: T0 + 6 });
-  assert.deepEqual(log.entries[1]?.until, { kind: "seen", at: T0 + 5 });
+  // The relay's allocation can outlast the connection, so the page doesn't see it end.
+  assert.deepEqual(log.entries[1]?.until, { kind: "stated", how: "relayAllocation" });
   assert.deepEqual(log.entries[2]?.until, { kind: "seen", at: T0 + 3 });
   assert.deepEqual(log.entries[3]?.until, { kind: "seen", at: T0 + 5 });
   assert.deepEqual(log.entries[5]?.until, { kind: "stays" });
@@ -648,4 +649,15 @@ test("tracesLeft counts the lines not seen to end, without the new-transfer mark
   // A line that is passed on or made and not kept is not a trace left.
   assert.equal(tracesLeft(play("sender", relay())), 1);
   assert.equal(tracesLeft(play("sender", joined(["turns:t:443"]))), 3);
+  // The relay keeps no log of the addresses it sees, so that line is not a trace left either.
+  assert.equal(tracesLeft(play("sender", joined(["stun:t:3478"]))), 2);
+  // While the relay is added to a connection it holds an allocation, which is.
+  assert.equal(tracesLeft(play("sender", { t: "relay-added", link: LINK })), 1);
+});
+
+test("the relay's lines name its fault log, never a log it keeps of every connection", () => {
+  const log = play("sender", joined(["stun:t:3478"]), { t: "relay-added", link: LINK });
+  const until = (kind: string) => log.entries.find((e) => e.what.kind === kind)?.until;
+  assert.deepEqual(until("stunSees"), { kind: "stated", how: "relayNoLog" });
+  assert.deepEqual(until("relayAdded"), { kind: "stated", how: "relayAllocation" });
 });

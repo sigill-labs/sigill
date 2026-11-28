@@ -18,6 +18,7 @@ import type {
   RefusedReason,
   ServerMessage,
 } from "@fidant/protocol";
+import type { OpenPath } from "./peer.ts";
 
 /** The most lines a log keeps; older ones are dropped first. */
 export const MAX_ENTRIES = 500;
@@ -28,9 +29,6 @@ const LINK_PREFIX = 6;
 /** Which page keeps the log. */
 export type Role = "sender" | "recipient";
 
-/** A path a connection that opened took. */
-export type OpenPath = Exclude<ConnectionPath, "failed">;
-
 /**
  * What a holder is documented to do with a trace:
  * - `connection`: until this page's connection to the server closes, at once when it closes cleanly.
@@ -39,7 +37,8 @@ export type OpenPath = Exclude<ConnectionPath, "failed">;
  * - `notKept`: passed on or made, and not kept.
  * - `tab`: while the tab is open.
  * - `credential5m`: usable for 5 minutes to start a relayed connection.
- * - `relay7d`: our relay keeps no log; a temporary one, only to fix a fault or stop abuse, for at most 7 days.
+ * - `relayNoLog`: our relay keeps no log of it; a temporary log, only to fix a fault or stop abuse, for at most 7 days.
+ * - `relayAllocation`: while the relay's allocation lasts, which can outlast the connection between the two browsers; a temporary relay log, only to fix a fault or stop abuse, for at most 7 days.
  * - `history`: until the browser's history is cleared.
  * - `peerConnection`: until the connection between the two browsers closes.
  * - `attempt`: until this transfer attempt ends.
@@ -51,7 +50,8 @@ export type Stated =
   | "notKept"
   | "tab"
   | "credential5m"
-  | "relay7d"
+  | "relayNoLog"
+  | "relayAllocation"
   | "history"
   | "peerConnection"
   | "attempt";
@@ -191,13 +191,16 @@ export type TraceEntry = {
   readonly open?: string;
 };
 
-/** How many traces the log still shows as left: every line but the new-transfer marker that this page hasn't seen end and that isn't kept to begin with. */
+/** How many traces the log still shows as left: every line but the new-transfer marker that this page hasn't seen end and that isn't kept to begin with (passed on, or seen by a relay that keeps no log). */
 export function tracesLeft(log: TraceLog): number {
   return log.entries.filter(
     (entry) =>
       entry.what.kind !== "newTransfer" &&
       entry.until.kind !== "seen" &&
-      !(entry.until.kind === "stated" && entry.until.how === "notKept"),
+      !(
+        entry.until.kind === "stated" &&
+        (entry.until.how === "notKept" || entry.until.how === "relayNoLog")
+      ),
   ).length;
 }
 
@@ -505,7 +508,7 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
     case "relay-added": {
       const key = `relay:${prefix(event.link ?? "")}`;
       closeKey(key);
-      add({ kind: "relayAdded" }, stated("peerConnection"), key);
+      add({ kind: "relayAdded" }, stated("relayAllocation"), key);
       break;
     }
     case "path": {
@@ -518,8 +521,8 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
       break;
     }
     case "peer-closed":
+      // Not the relay's line: its allocation can outlast the connection, until its lifetime runs out.
       closeKey(`path:${prefix(event.link ?? "")}`);
-      closeKey(`relay:${prefix(event.link ?? "")}`);
       break;
     case "delivered":
       add(
@@ -593,7 +596,7 @@ export function record(log: TraceLog, event: TraceEvent, now: number): TraceLog 
           add({ kind: "relayCredentials" }, stated("credential5m"));
         }
         if (message.stun) {
-          add({ kind: "stunSees" }, stated("relay7d"));
+          add({ kind: "stunSees" }, stated("relayNoLog"));
         }
         break;
       }

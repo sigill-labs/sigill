@@ -136,7 +136,7 @@ const traces: TraceTexts = {
     logError: ({ code }) =>
       `En rad om att servern avvisade ett meddelande från den här sidan: ${traces.errors[code]}.`,
     stunSees: () =>
-      "Ser varje webbläsares offentliga IP-adress när webbläsaren frågar reläet efter den.",
+      "Ser varje webbläsares offentliga IP-adress när webbläsaren frågar reläet efter den. Reläet loggar den inte, utom i en tillfällig logg bara för att rätta ett fel eller stoppa missbruk.",
     relayAdded: () =>
       "Lades till i anslutningen, så reläet kan se båda webbläsarnas IP-adresser, även om en direkt väg vinner.",
     relayCarries: () =>
@@ -164,7 +164,8 @@ const traces: TraceTexts = {
     notKept: "sparas inte",
     tab: "tills fliken stängs",
     credential5m: "5 min",
-    relay7d: "upp till 7 dagar",
+    relayNoLog: "sparas inte; en fellogg högst 7 dagar",
+    relayAllocation: "medan allokeringen finns; en fellogg högst 7 dagar",
     history: "tills historiken rensas",
     peerConnection: "under anslutningen",
     attempt: "tills överföringen slutar",
@@ -182,7 +183,7 @@ const traces: TraceTexts = {
     "bad-message": "ett meddelande som servern inte kunde läsa",
     "wrong-role": "ett meddelande som den här sidans roll inte skickar",
     "already-hosted": "en länk som en annan anslutning har",
-    "already-joined": "en anslutning till en annan länk på samma uppkoppling",
+    "already-joined": "en anslutningsbegäran för en annan länk på samma anslutning",
     "not-on-link": "ett meddelande för en länk som den här sidan inte är ansluten till",
   },
   paths: {
@@ -1524,6 +1525,10 @@ export const sv: Messages = {
             [
               "",
               "Flikens ikon som den senast var, en grön prick medan överföringen pågick, en bock när den kommit fram eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, länken också, tills historiken rensas. I vårt test på en dator sparade Chrome den senaste ikonen, Firefox och Safari verkade bara spara den som en sida öppnades med, och ett privat fönster i dem sparade ingen. Andra webbläsare har inte testats. Om de valt Ljust eller Mörkt under Tema visar en logga som sparas där det valet, som webbläsaren ändå sparar.",
+            ],
+            [
+              "",
+              "Om de tillåter notiser: en notis när filen eller hemligheten är redo, när kontrollnumret är klart, när den har kommit fram och när den inte togs emot, som deras enhets notislista visar och sparar. Den säger bara vilket av dessa tillfällen det är och om det är en fil eller en hemlighet, aldrig ett filnamn, en persons namn, en länk eller en nyckel.",
             ],
             ["", "Deras val av tema och språk, i webbläsarens lokala lagring, tills de rensas."],
           ],
