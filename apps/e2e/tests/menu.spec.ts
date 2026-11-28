@@ -229,12 +229,12 @@ for (const [locale, lang, headings] of [
   });
 }
 
-test("going back from /send with the details drawer open leaves the next page usable", async ({
+test("going back from /send with the traces drawer open leaves the next page usable", async ({
   page,
 }) => {
   await page.goto("/privacy");
   await nav(page).getByRole("link", { name: "Send" }).click();
-  await page.getByRole("button", { name: "Technical details" }).click();
+  await page.getByRole("button", { name: "Traces" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/privacy$/);
@@ -244,13 +244,13 @@ test("going back from /send with the details drawer open leaves the next page us
   await expect(page).toHaveURL(/\/send$/);
 });
 
-test("scrolling over the details drawer leaves the page behind it where it was", async ({
+test("scrolling over the traces drawer leaves the page behind it where it was", async ({
   page,
 }) => {
   // Wide enough for the side drawer, short enough that both the page and the drawer scroll.
   await page.setViewportSize({ width: 1000, height: 400 });
   await page.goto("/send");
-  const button = page.getByRole("button", { name: "Technical details" });
+  const button = page.getByRole("button", { name: "Traces" });
   // The button is on the bar fixed to the screen's bottom, so scroll the page itself.
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   const before = await page.evaluate(() => window.scrollY);
@@ -269,7 +269,7 @@ test("scrolling over the details drawer leaves the page behind it where it was",
   );
   expect(await page.evaluate(() => window.scrollY)).toBe(before);
   // A text selection that ends on the dimmed page keeps the drawer open; a click there closes it.
-  const box = await drawer.getByRole("heading", { name: "Technical details" }).boundingBox();
+  const box = await drawer.getByRole("heading", { name: "Traces" }).boundingBox();
   if (!box) {
     throw new Error("the drawer's heading has no box");
   }

@@ -1,42 +1,18 @@
 // Swedish text. Same keys as en.ts.
 
 import type { LogFields } from "@fidant/protocol";
-import type { Kind, Tie } from "../lib/server-facts.ts";
-import type { Messages, Nouns, Section, Sections, TraceTexts } from "./en.ts";
+import type { Kind, Messages, Nouns, Section, Sections, TraceTexts } from "./en.ts";
 
 const items: Nouns = {
   file: {
-    label: "Filinnehåll",
-    The: "Filen",
     the: "filen",
     it: "den",
     encrypted: "krypterad",
-    data: "filinnehåll",
-    key: "den del av länken som låser upp filen",
-    unlocks: "den del som låser upp filen",
-    seen: "den krypterade filen som passerar, med storleken avrundad uppåt så att den exakta storleken inte syns",
   },
   secret: {
-    label: "Hemlighet",
-    The: "Hemligheten",
     the: "hemligheten",
     it: "den",
     encrypted: "krypterad",
-    data: "hemligheter",
-    key: "den del av länken som låser upp hemligheten",
-    unlocks: "den del som låser upp hemligheten",
-    seen: "den krypterade hemligheten som passerar, vilket inte visar något om dess längd",
-  },
-  unknown: {
-    label: "Innehåll",
-    The: "Det som delas",
-    the: "det som delas",
-    it: "det",
-    encrypted: "krypterat",
-    data: "det som delas",
-    key: "den del av länken som låser upp det som delas",
-    unlocks: "den del som låser upp det som delas",
-    seen: "de krypterade uppgifterna som passerar, med storleken avrundad uppåt så att den exakta storleken inte syns",
   },
 };
 
@@ -81,7 +57,7 @@ const id = (link: string) => `${link}…`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 const traces: TraceTexts = {
-  heading: "Spåren efter den här överföringen",
+  title: "Spår",
   note: 'Tiderna är när den här sidan såg varje händelse. En tid efter "borta" är när den här sidan såg att spåret försvann. Alla andra slut är så som vår server och vårt relä är byggda att bete sig, vilket den här sidan inte kan kontrollera.',
   empty: "Inget ännu.",
   parts: {
@@ -817,103 +793,6 @@ export const sv: Messages = {
     declinedTitle: "Du tackade nej till hemligheten",
     showAgain: "Visa hemligheten igen",
   },
-  server: {
-    heading: "Vad vår server har just nu",
-    seesLabel: "Ser",
-    holdsLabel: "Har",
-    passedOnLabel: "Har skickat vidare",
-    fileDataLabel: (kind: Kind) => items[kind].label,
-    logsLabel: "Loggar",
-    afterwardsLabel: "Efteråt",
-    seesSender:
-      "Din IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får, och samma sak för varje mottagare när de öppnar sin länk.",
-    seesRecipient:
-      "Din IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",
-    senderHolds: ({ online, links, connected, relay, emailed, sending, mailed, kind }) => {
-      if (!online) {
-        return mailed
-          ? "Bara antalet mejl den skickade åt dig, i förvrängd form, i upp till en timme, när den har märkt att anslutningen har stängts. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under en överföring håller den först kvar överföringens plats i upp till 30 sekunder, inom den minuten, så att den här sidan kan ta tillbaka den när den ansluter igen."
-          : "Ingenting, när den har märkt att anslutningen har stängts. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under en överföring håller den först kvar överföringens plats i upp till 30 sekunder, inom den minuten, så att den här sidan kan ta tillbaka den när den ansluter igen.";
-      }
-      const choice = relay
-        ? "Ditt val att tillåta vårt relä."
-        : "Ditt val att inte tillåta vårt relä.";
-      const counts = mailed
-        ? " Antalet mejl den skickade åt dig, i förvrängd form, i upp till en timme."
-        : "";
-      if (links === 0) {
-        return `Inga länkar ännu. ${choice}${counts}`;
-      }
-      const ids = links === 1 ? "ID:t för din länk" : `ID:na för dina ${links} länkar`;
-      const email =
-        emailed === 0
-          ? ""
-          : emailed === 1
-            ? " För länken den mejlar: mottagarens e-postadress och koderna som skickas dit."
-            : ` För de ${emailed} länkar den mejlar: mottagarnas e-postadresser och koderna som skickas dit.`;
-      const key =
-        sending === 0
-          ? `${ids}, aldrig ${items[kind].unlocks}.${email}`
-          : `${ids}.${email} Medan den skickar ett mejl också ${items[kind].key}, och ditt namn.`;
-      const held = `${key} ${choice}${counts}`;
-      if (connected === 0) {
-        return held;
-      }
-      const who =
-        connected === 1 ? "1 mottagare är ansluten" : `${connected} mottagare är anslutna`;
-      return `${held} ${who} just nu.`;
-    },
-    recipientHolds: (tie: Tie, emailed: boolean, kind: Kind) =>
-      (emailed
-        ? {
-            paired: `ID:t för din länk, din e-postadress, att den här fliken har angett rätt kod och att den här sidan är ansluten till avsändaren. Servern hade ${items[kind].unlocks} bara medan den mejlade länken till dig.`,
-            unpaired:
-              "Din e-postadress, som avsändaren angav för den här länken, den senaste koden den mejlade dig och om den här fliken har angett den. Bara avsändarens sida kan hålla kvar dem där.",
-            closed:
-              "Ingenting om den här sidan, när servern har märkt att anslutningen har stängts, utom om den här fliken har angett rätt kod. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under överföringen håller den först kvar den här sidans plats i överföringen i upp till 30 sekunder, inom den minuten, så att sidan kan ta tillbaka den när den ansluter igen. Bara avsändarens sida kan hålla kvar det, din länks ID och din e-postadress där.",
-          }
-        : {
-            paired: `ID:t för din länk, aldrig ${items[kind].unlocks}, och att den här sidan är ansluten till avsändaren.`,
-            unpaired:
-              "Ingenting som knyter den här sidan till din länk. Bara avsändarens sida kan hålla kvar din länks ID där.",
-            closed:
-              "Ingenting om den här sidan, när servern har märkt att anslutningen har stängts. Det tar upp till en minut om nätverket bröts. Om nätverket bröts under överföringen håller den först kvar den här sidans plats i överföringen i upp till 30 sekunder, inom den minuten, så att sidan kan ta tillbaka den när den ansluter igen. Bara avsändarens sida kan hålla kvar din länks ID där.",
-          })[tie],
-    passedOn: (messages: number, size: string, emailed: boolean) =>
-      messages === 0
-        ? "Inget ännu."
-        : `${messages} ${messages === 1 ? "uppkopplingsmeddelande" : "uppkopplingsmeddelanden"} (${size}), alla krypterade så att servern inte kan läsa dem${emailed ? ", utom för en länk som den har mejlat och därför haft nyckeln till" : ""}.`,
-    fileData: (kind: Kind) => `Inget. ${items[kind].The} går direkt mellan webbläsarna.`,
-    fileDataRelayed: (kind: Kind) =>
-      `Inget. Webbläsarna kunde inte ansluta direkt, så ${items[kind].the} går ${items[kind].encrypted} via vårt relä i stället.`,
-    relaySeesLabel: "Vårt relä ser",
-    relaySees: (kind: Kind) =>
-      `Båda webbläsarnas IP-adresser och ${items[kind].seen}. Reläet kan inte låsa upp ${items[kind].the}.`,
-    relayLogsLabel: "Vårt relä loggar",
-    relayLogs: (kind: Kind) =>
-      `Ingen logg över trafiken i vanliga fall. Bara när vi felsöker eller stoppar missbruk: anslutningstider, IP-adresser och hur mycket data som passerade, i högst 7 dagar. Aldrig namn, nycklar eller ${items[kind].data}. Medan det förnyar sitt certifikat loggar det också adresserna som når det på port 80, aldrig webbläsarnas, i ungefär fem veckor.`,
-    relayKeepsLabel: "Vårt relä sparar",
-    relayKeeps: (kind: Kind) =>
-      `Ingenting av ${items[kind].the} när ${items[kind].it} har passerat. Loggrader som sparas när vi felsöker eller stoppar missbruk raderas inom 7 dagar.`,
-    senderAfterwards: (online: boolean, mailed: boolean) =>
-      `${
-        online
-          ? "När du stänger den här fliken glömmer servern dina länkar, inom högst en minut. Loggraderna finns kvar."
-          : "Dina länkar försvinner från servern inom en minut efter att anslutningen stängdes. Loggraderna finns kvar."
-      }${mailed ? " Det gör också antalet mejl den skickade åt dig, i förvrängd form, i upp till en timme." : ""}`,
-    afterwardsRecipient: (emailed: boolean) =>
-      emailed
-        ? "När den här sidan kopplas från släpper servern det den har om sidan, inom högst en minut, utom det som kodkontrollen behöver: din e-postadress och om den här fliken har angett rätt kod finns kvar tills avsändarens sida stängs, och antalet koder som skickats till din adress och antalet koder som din IP-adress har bett om, båda i förvrängd form, i upp till en timme. Loggraderna finns kvar."
-        : "När den här sidan kopplas från släpper servern det den har om sidan, inom högst en minut. Loggraderna finns kvar.",
-    logs: (kind: Kind) =>
-      `Vad som hände, till exempel att en länk öppnades, med ${new Intl.ListFormat("sv", {
-        type: "conjunction",
-      }).format(
-        Object.entries(logFields)
-          .filter(([field]) => field !== "event")
-          .map(([, [what]]) => what),
-      )}. Aldrig namn, nycklar, ${items[kind].data} eller IP-adresser.`,
-  },
   traces,
   footer: {
     file: "Skicka en fil",
@@ -1419,7 +1298,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "En logg över spåren efter den här överföringen, under Tekniska detaljer: när den här sidan såg varje händelse, vilken del som har vad, de första 6 tecknen i varje länk-ID och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i den här flikens minne och skickas aldrig, tills du lämnar sidan eller stänger fliken.",
+              "En logg över spåren efter den här överföringen, under Spår: när den här sidan såg varje händelse, vilken del som har vad, de första 6 tecknen i varje länk-ID och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i den här flikens minne och skickas aldrig, tills du lämnar sidan eller stänger fliken.",
             ],
           ],
         },
@@ -1614,7 +1493,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "En logg över spåren efter den här överföringen, under Vad vår server har just nu: när deras sida såg varje händelse, vilken del som har vad, de första 6 tecknen i länk-ID:t och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i sidans minne och skickas aldrig, tills de lämnar sidan eller stänger fliken.",
+              "En logg över spåren efter den här överföringen, under Spår: när deras sida såg varje händelse, vilken del som har vad, de första 6 tecknen i länk-ID:t och vägen. Aldrig ett filnamn, en nyckel eller en IP-adress. Bara i sidans minne och skickas aldrig, tills de lämnar sidan eller stänger fliken.",
             ],
             [
               "",

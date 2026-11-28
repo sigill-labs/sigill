@@ -8,9 +8,8 @@ import { Alert, AlertDescription, AlertTitle } from "#components/ui/alert";
 import { buttonVariants } from "#components/ui/button";
 import { useI18n } from "./i18n/I18n.tsx";
 import { LANGUAGE_NAMES, type Lang, localizedPath } from "./i18n/language.ts";
-import { describeTrace, formatBytes } from "./lib/format.ts";
+import { describeTrace } from "./lib/format.ts";
 import type { OpenPath } from "./lib/peer.ts";
-import type { Kind, Relayed } from "./lib/server-facts.ts";
 import type { TraceLog as Log } from "./lib/trace-log.ts";
 import type { Theme } from "./theme.ts";
 
@@ -560,60 +559,15 @@ export function PathLine({ path }: { path: OpenPath }) {
   );
 }
 
-type ServerPanelProps = {
-  kind: Kind;
-  sees: string;
-  holds: string;
-  relayed: Relayed;
-  afterwards: string;
-  /** A connection on this page went through our TURN relay. */
-  viaRelay: boolean;
-  /** The server got the key of a link on this page, to email it. */
-  emailed: boolean;
-};
-
-/** What our server and relay see, hold and keep, as rows for `Facts`. */
-function serverRows(
-  t: ReturnType<typeof useI18n>["t"],
-  lang: Lang,
-  { sees, holds, relayed, afterwards, viaRelay, emailed, kind }: ServerPanelProps,
-): ReadonlyArray<readonly [string, string]> {
-  return [
-    [t.server.seesLabel, sees],
-    [t.server.holdsLabel, holds],
-    [
-      t.server.passedOnLabel,
-      t.server.passedOn(relayed.messages, formatBytes(relayed.bytes, lang), emailed),
-    ],
-    [
-      t.server.fileDataLabel(kind),
-      viaRelay ? t.server.fileDataRelayed(kind) : t.server.fileData(kind),
-    ],
-    [t.server.logsLabel, t.server.logs(kind)],
-    [t.server.afterwardsLabel, afterwards],
-    ...(viaRelay
-      ? ([
-          [t.server.relaySeesLabel, t.server.relaySees(kind)],
-          [t.server.relayLogsLabel, t.server.relayLogs(kind)],
-          [t.server.relayKeepsLabel, t.server.relayKeeps(kind)],
-        ] as const)
-      : []),
-  ];
-}
-
 /**
  * This page's traces, oldest first, each with when this page saw it, who holds it, what and until
  * when. No live region: a line per signaling message would flood a screen reader.
  */
 export function TraceLog({ log }: { log: Log }) {
   const { t, lang } = useI18n();
-  const headingId = useId();
   return (
-    <section class="mt-6" aria-labelledby={headingId}>
-      <h3 id={headingId} class="m-0 text-[length:inherit] font-semibold">
-        {t.traces.heading}
-      </h3>
-      <p class="mt-1 mb-0 text-muted-foreground">{t.traces.note}</p>
+    <>
+      <p class="mt-3 mb-0 text-muted-foreground">{t.traces.note}</p>
       {log.entries.length === 0 ? (
         <p class="mt-3 mb-0">{t.traces.empty}</p>
       ) : (
@@ -636,46 +590,43 @@ export function TraceLog({ log }: { log: Log }) {
           })}
         </ol>
       )}
-    </section>
+    </>
   );
 }
 
-/** The receive page's server facts: a section with a disclosure. */
-export function ServerPanel({ traces, ...props }: ServerPanelProps & { traces: Log }) {
-  const { t, lang } = useI18n();
+/** The receive page's traces: a section with a disclosure, whose summary names it. */
+export function TracePanel({ traces }: { traces: Log }) {
+  const { t } = useI18n();
   const headingId = useId();
   return (
     <section class="mt-10 text-[0.9rem]" aria-labelledby={headingId}>
       <details>
         <summary id={headingId} class="cursor-pointer font-medium text-muted-foreground">
-          {t.server.heading}
+          {t.traces.title}
         </summary>
-        <Facts rows={serverRows(t, lang, props)} />
         <TraceLog log={traces} />
       </details>
     </section>
   );
 }
 
-/** The send page's "Technical details": an icon button, for the bottom bar, that opens the file facts and the server facts in a drawer. */
-export function ServerDrawer({
+/** The send page's "Traces": an icon button, for the bottom bar, that opens the file facts and the trace log in a drawer. */
+export function TraceDrawer({
   facts,
   visible,
   onGreen,
   traces,
-  ...panel
-}: ServerPanelProps & {
-  /** This page's trace log, shown under the server facts. */
+}: {
+  /** This page's trace log, shown under the file facts. */
   traces: Log;
-  /** The file's facts, shown above the server's; empty for a secret. */
+  /** The file's facts, shown above the log; empty for a secret. */
   facts: ReadonlyArray<readonly [string, ComponentChildren]>;
   /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it. */
   visible: boolean;
   /** True while the bar behind the button is green, with white text. */
   onGreen: boolean;
 }) {
-  const { t, lang } = useI18n();
-  const headingId = useId();
+  const { t } = useI18n();
   const titleId = useId();
   const drawer = useRef<HTMLDialogElement>(null);
   // Whether the last press began on the dimmed page, so a text selection dragged out of the drawer doesn't close it.
@@ -691,8 +642,8 @@ export function ServerDrawer({
           focus to it when the drawer closes. */}
       <button
         type="button"
-        aria-label={t.common.techDetails}
-        title={t.common.techDetails}
+        aria-label={t.traces.title}
+        title={t.traces.title}
         class={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
           "size-10 cursor-pointer",
@@ -726,7 +677,7 @@ export function ServerDrawer({
         <div class="min-h-full p-6">
           <div class="flex items-center justify-between gap-4">
             <h2 id={titleId} class="m-0 text-[1.25rem] font-bold">
-              {t.common.techDetails}
+              {t.traces.title}
             </h2>
             <form method="dialog">
               <button type="submit" class={buttonVariants({ variant: "ghost", size: "sm" })}>
@@ -735,12 +686,6 @@ export function ServerDrawer({
             </form>
           </div>
           {facts.length > 0 && <Facts rows={facts} />}
-          <section class="mt-6" aria-labelledby={headingId}>
-            <h3 id={headingId} class="m-0 text-[length:inherit] font-semibold">
-              {t.server.heading}
-            </h3>
-            <Facts rows={serverRows(t, lang, panel)} />
-          </section>
           <TraceLog log={traces} />
         </div>
       </dialog>

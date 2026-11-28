@@ -34,11 +34,9 @@ const loopbackRelay =
   "Firefox pairs the local coturn's 127.0.0.1 relay candidates with no LAN candidate and ends ICE at once, before the sender falls back to the relay";
 
 const sha256Hex = (data: Uint8Array) => createHash("sha256").update(data).digest("hex");
-/** The sender's panel is in its closed drawer, so only its lookup includes hidden elements. */
-const panel = (page: Page, sender: boolean) =>
-  page.getByRole("region", { name: "What our server has right now", includeHidden: sender });
-const relayed =
-  "None. The browsers couldn't connect directly, so the file passes encrypted through our relay instead.";
+/** The sender's trace log is in its closed drawer, so only its lookup includes hidden elements. */
+const traceLog = (page: Page, sender: boolean) =>
+  page.getByRole(sender ? "dialog" : "region", { name: "Traces", includeHidden: sender });
 
 /** What a run log has written since `start` bytes. */
 const since = async (file: string, start: number) => (await readFile(file)).subarray(start);
@@ -166,11 +164,13 @@ for (const transport of ["udp", "tcp"] as const) {
     expect(sha256Hex(await readFile(await download.path()))).toBe(sha256Hex(file.bytes));
 
     for (const page of [sender, recipient]) {
-      const facts = panel(page, page === sender);
-      await expect(facts).toContainText(relayed);
-      await expect(facts).toContainText("Our relay sees");
-      await expect(facts).not.toContainText("goes directly between browsers");
-      // The panel and the Why? text also say "through our relay".
+      const log = traceLog(page, page === sender);
+      await expect(log).toContainText("Connection: Through our relay.");
+      await expect(log).toContainText(
+        "Our relay: Carries the encrypted data between the two browsers.",
+      );
+      await expect(log).not.toContainText("Connection: Direct");
+      // The log and the Why? text also say "through our relay".
       await expect(page.getByText("Through our relay", { exact: true })).toBeVisible();
       // The send page shows the link at once; the receive page explains under "Why?".
       if (page === recipient) {

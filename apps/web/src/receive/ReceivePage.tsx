@@ -132,7 +132,6 @@ import {
   takesRefusal,
 } from "../lib/receive-guards.ts";
 import { keepsPart, peerLostProblem, refusedProblem } from "../lib/receive-problem.ts";
-import { addRelay, type Kind, NO_RELAYS, type Tie } from "../lib/server-facts.ts";
 import { connectSignaling, type SignalingClient } from "../lib/signaling-client.ts";
 import {
   BLOB_WARN_BYTES,
@@ -153,9 +152,9 @@ import {
   Page,
   PathLine,
   Problem,
-  ServerPanel,
   SwapLabel,
   TechDetails,
+  TracePanel,
   useCopyNote,
 } from "../ui.tsx";
 
@@ -265,7 +264,6 @@ export type ReceivePreview = {
   view?: View;
   emailed?: boolean;
   path?: OpenPath;
-  tie?: Tie;
 };
 
 export function ReceivePage({
@@ -304,13 +302,10 @@ export function ReceivePage({
     return () => removeEventListener("beforeunload", ask);
   }, [downloading]);
   const [picking, setPicking] = useState(false);
-  const [relayed, countRelay] = useReducer(addRelay, NO_RELAYS);
   // Only in page memory, and on the page rather than the attempt: Try again keeps it, with a marker line.
   const [traces, addTrace] = useReducer(recordAt, "recipient", createTraceLog);
   const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
   const [reachedServer, setReachedServer] = useState(false);
-  const [tie, setTie] = useState<Tie>("closed");
-  const [viaRelay, setViaRelay] = useState(false);
   const [path, setPath] = useState<OpenPath | undefined>(undefined);
   const attemptRef = useRef<Attempt | undefined>(undefined);
   const codeAsked = useRef<string | undefined>(undefined);
@@ -324,7 +319,6 @@ export function ReceivePage({
   /** Closes everything an attempt holds. `linger` keeps the peer up for a moment. */
   const release = (attempt: Attempt, linger = false) => {
     attempt.ended = true;
-    setTie("closed");
     attempt.abort.abort(new Error("attempt ended"));
     attempt.signaling.close();
     const closePeer = () => {
@@ -356,7 +350,6 @@ export function ReceivePage({
     // A fresh ID per attempt, so the sender's refusal can name the attempt it refuses.
     const attemptId = encodeBase64url(crypto.getRandomValues(new Uint8Array(LINK_ID_BYTES)));
     const signaling = connectSignaling({
-      onRelay: countRelay,
       onMessage: (...args) => {
         const event = fromMessage(...args);
         if (event) {
@@ -426,9 +419,6 @@ export function ReceivePage({
       }
       setPath(resolved);
       trace({ t: "path", path: resolved, link: linkId });
-      if (resolved === "relay") {
-        setViaRelay(true);
-      }
     };
     const outdated = (reason: "outdated" | "peer-outdated") =>
       finish({ s: "refused", problem: reason === "outdated" ? "outdated" : "senderOutdated" });
@@ -493,7 +483,6 @@ export function ReceivePage({
         return;
       }
       opened = true;
-      setTie("unpaired");
       const action = onSocketOpen({
         channelOpen: attempt.channelOpen,
         hasToken: resumeToken !== undefined,
@@ -522,7 +511,6 @@ export function ReceivePage({
         case "close":
           // The transfer goes on without the server, which can no longer recover a dropped route.
           waiting = false;
-          setTie("closed");
           signaling.close();
           break;
         case "lost":
@@ -544,7 +532,6 @@ export function ReceivePage({
       if (byClient || !current()) {
         return;
       }
-      setTie("closed");
       if (!opened) {
         // The client retries; CONNECT_TIMEOUT_MS bounds the wait.
         return;
@@ -637,7 +624,6 @@ export function ReceivePage({
             attempt.peer.rejoined(message.iceServers);
             break;
           }
-          setTie("paired");
           attempt.relayRefused = !message.turn;
           attempt.peer = createRecipientPeer({
             signaling,
@@ -691,16 +677,12 @@ export function ReceivePage({
           if (action === "ignore") {
             break;
           }
-          const answered = waiting;
           waiting = false;
           if (action === "refused") {
             without(false);
             break;
           }
           resumeToken = message.token;
-          if (answered) {
-            setTie("paired");
-          }
           // The sender's page restarts ICE only when asked, so the `join` the stall wanted goes now.
           if (
             action === "keep-and-join" &&
@@ -751,9 +733,6 @@ export function ReceivePage({
           }
           break;
         case "host-gone":
-          if (current()) {
-            setTie("unpaired");
-          }
           // A transfer under way can finish without the server; the peer
           // closing ends it if the sender really went away. Before that,
           // browsers can take many seconds to notice a closed tab over the
@@ -934,9 +913,7 @@ export function ReceivePage({
     setView(preview.view ?? { s: "connecting" });
     setPicking(false);
     setReachedServer(true);
-    setTie(preview.tie ?? "closed");
     setPath(preview.path);
-    setViaRelay(preview.path === "relay");
   }, [preview]);
 
   // Each step replaces the button that had focus, so focus moves to the new step's heading.
@@ -1063,20 +1040,7 @@ export function ReceivePage({
   }
 
   const emailed = link?.mark !== undefined;
-  const isText = "offer" in view ? view.offer.text : "text" in view ? view.text : undefined;
-  const kind: Kind = isText === undefined ? "unknown" : isText ? "secret" : "file";
-  const panel = reachedServer ? (
-    <ServerPanel
-      sees={t.server.seesRecipient}
-      holds={t.server.recipientHolds(tie, emailed, kind)}
-      relayed={relayed}
-      afterwards={t.server.afterwardsRecipient(emailed)}
-      viaRelay={viaRelay}
-      emailed={emailed}
-      kind={kind}
-      traces={traces}
-    />
-  ) : null;
+  const panel = reachedServer ? <TracePanel traces={traces} /> : null;
 
   let body: VNode;
   switch (view.s) {

@@ -3,7 +3,6 @@
 
 import type { ConnectionPath, ErrorCode, LogFields, RefusedReason } from "@fidant/protocol";
 import type { Line } from "../how/traces.ts";
-import type { Kind, Tie } from "../lib/server-facts.ts";
 import type { Part, Role, Stated, What } from "../lib/trace-log.ts";
 
 /** A place on the /how/traces explorer and the traces it keeps. */
@@ -44,20 +43,11 @@ const logFields: Record<"event" | keyof LogFields, readonly [string, string]> = 
   ],
 };
 
-export type Nouns = Record<
-  Kind,
-  {
-    label: string;
-    The: string;
-    the: string;
-    it: string;
-    encrypted: string;
-    data: string;
-    key: string;
-    unlocks: string;
-    seen: string;
-  }
->;
+/** What the page shares. */
+export type Kind = "file" | "secret";
+
+/** The words for what the page shares. Swedish needs `encrypted` to agree with it. */
+export type Nouns = Record<Kind, { the: string; it: string; encrypted: string }>;
 
 /** What the trace log's text needs besides a line: whose page it is, and how to write a size. */
 export type TraceContext = { role: Role; size: (bytes: number) => string };
@@ -68,7 +58,8 @@ export type TraceContext = { role: Role; size: (bytes: number) => string };
  * link IDs, counts, sizes, routes and reason codes.
  */
 export type TraceTexts = {
-  heading: string;
+  /** Names the drawer and the receive page's disclosure that hold the log. */
+  title: string;
   note: string;
   empty: string;
   parts: Record<Part, (role: Role) => string>;
@@ -87,37 +78,14 @@ export type TraceTexts = {
 
 const items: Nouns = {
   file: {
-    label: "File data",
-    The: "The file",
     the: "the file",
     it: "it",
     encrypted: "encrypted",
-    data: "file data",
-    key: "the part of that link that unlocks the file",
-    unlocks: "the part that unlocks the file",
-    seen: "the encrypted file passing through, with its size rounded up so the exact size stays hidden",
   },
   secret: {
-    label: "Secret",
-    The: "The secret",
     the: "the secret",
     it: "it",
     encrypted: "encrypted",
-    data: "secrets",
-    key: "the part of that link that unlocks the secret",
-    unlocks: "the part that unlocks the secret",
-    seen: "the encrypted secret passing through, which shows nothing of its length",
-  },
-  unknown: {
-    label: "Data",
-    The: "What is shared",
-    the: "what is shared",
-    it: "it",
-    encrypted: "encrypted",
-    data: "what is shared",
-    key: "the part of that link that unlocks what is shared",
-    unlocks: "the part that unlocks what is shared",
-    seen: "the encrypted data passing through, with its size rounded up so the exact size stays hidden",
   },
 };
 
@@ -126,7 +94,7 @@ const id = (link: string) => `${link}…`;
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 const traces: TraceTexts = {
-  heading: "This transfer's traces",
+  title: "Traces",
   note: 'Times are when this page saw each event. A "gone at" time is when this page saw the trace end. Every other end is how our server and relay are built to behave, which this page can\'t check.',
   empty: "Nothing yet.",
   parts: {
@@ -863,127 +831,6 @@ export const en = {
     declinedTitle: "You declined the secret",
     showAgain: "Show the secret again",
   },
-  server: {
-    heading: "What our server has right now",
-    seesLabel: "Sees",
-    holdsLabel: "Holds",
-    passedOnLabel: "Passed on",
-    fileDataLabel: (kind: Kind) => items[kind].label,
-    logsLabel: "Logs",
-    afterwardsLabel: "Afterwards",
-    seesSender:
-      "Your IP address and the usual browser details any website gets, and the same for each recipient when they open their link.",
-    seesRecipient: "Your IP address and the usual browser details any website gets.",
-    senderHolds: ({
-      online,
-      links,
-      connected,
-      relay,
-      emailed,
-      sending,
-      mailed,
-      kind,
-    }: {
-      kind: Kind;
-      online: boolean;
-      links: number;
-      connected: number;
-      /** Whether the sender allows our TURN relay. */
-      relay: boolean;
-      /** Hosted links the server emails or may be emailing. */
-      emailed: number;
-      /** Of those, links whose email the server may still be sending. */
-      sending: number;
-      /** Whether this page ever asked the server to email a link. */
-      mailed: boolean;
-    }) => {
-      if (!online) {
-        return mailed
-          ? "Only scrambled counts of the emails it sent for you, for up to an hour, once it notices the connection has closed. That takes up to a minute if the network dropped. If the network dropped during a transfer, it first keeps that transfer's place for up to 30 seconds, within that minute, so this page can take it back when it reconnects."
-          : "Nothing once it notices the connection has closed. That takes up to a minute if the network dropped. If the network dropped during a transfer, it first keeps that transfer's place for up to 30 seconds, within that minute, so this page can take it back when it reconnects.";
-      }
-      const choice = relay
-        ? "Your choice to allow our relay."
-        : "Your choice not to allow our relay.";
-      const counts = mailed
-        ? " Scrambled counts of the emails it sent for you, for up to an hour."
-        : "";
-      if (links === 0) {
-        return `No links yet. ${choice}${counts}`;
-      }
-      const ids = links === 1 ? "The ID of your link" : `The IDs of your ${links} links`;
-      const email =
-        emailed === 0
-          ? ""
-          : emailed === 1
-            ? " For the link it emails: the recipient's email address and the codes sent there."
-            : ` For the ${emailed} links it emails: the recipients' email addresses and the codes sent there.`;
-      const key =
-        sending === 0
-          ? `${ids}, never ${items[kind].unlocks}.${email}`
-          : `${ids}.${email} While it sends an email, also ${items[kind].key}, and your name.`;
-      const held = `${key} ${choice}${counts}`;
-      if (connected === 0) {
-        return held;
-      }
-      const who = connected === 1 ? "1 recipient" : `${connected} recipients`;
-      return `${held} ${who} connected right now.`;
-    },
-    /** `emailed`: the link is one the server emailed. */
-    recipientHolds: (tie: Tie, emailed: boolean, kind: Kind) =>
-      (emailed
-        ? {
-            paired: `The ID of your link, your email address, that this tab entered the right code, and that this page is connected to the sender. It had ${items[kind].unlocks} only while it emailed you the link.`,
-            unpaired:
-              "Your email address, which the sender gave for this link, the latest code it emailed you and whether this tab entered it. Only the sender's page can keep them there.",
-            closed:
-              "Nothing about this page once it notices the connection has closed, which takes up to a minute if the network dropped, apart from whether this tab entered the right code. If the network dropped during the transfer, it first keeps this page's place in it for up to 30 seconds, within that minute, so this page can take it back when it reconnects. Only the sender's page can keep that, your link's ID and your email address there.",
-          }
-        : {
-            paired: `The ID of your link, never ${items[kind].unlocks}, and that this page is connected to the sender.`,
-            unpaired:
-              "Nothing that ties this page to your link. Only the sender's page can keep your link's ID there.",
-            closed:
-              "Nothing about this page once it notices the connection has closed, which takes up to a minute if the network dropped. If the network dropped during the transfer, it first keeps this page's place in it for up to 30 seconds, within that minute, so this page can take it back when it reconnects. Only the sender's page can keep your link's ID there.",
-          })[tie],
-    /** `size` is already formatted, like "9.2 KB". `emailed`: the server emailed a link on this page. */
-    passedOn: (messages: number, size: string, emailed: boolean) =>
-      messages === 0
-        ? "Nothing yet."
-        : `${messages} ${messages === 1 ? "setup message" : "setup messages"} (${size}), all encrypted so the server can't read them${emailed ? ", except for a link it emailed, whose key it had" : ""}.`,
-    fileData: (kind: Kind) => `None. ${items[kind].The} goes directly between browsers.`,
-    fileDataRelayed: (kind: Kind) =>
-      `None. The browsers couldn't connect directly, so ${items[kind].the} passes ${items[kind].encrypted} through our relay instead.`,
-    relaySeesLabel: "Our relay sees",
-    relaySees: (kind: Kind) =>
-      `Both browsers' IP addresses and ${items[kind].seen}. It can't unlock ${items[kind].the}.`,
-    relayLogsLabel: "Our relay logs",
-    relayLogs: (kind: Kind) =>
-      `No log of the traffic by default. Only while we fix a fault or stop abuse: connection times, IP addresses and how much data passed through, for at most 7 days. Never names, keys or ${items[kind].data}. While it renews its certificate, it also logs the addresses that reach it on port 80, never browsers', for about five weeks.`,
-    relayKeepsLabel: "Our relay keeps",
-    relayKeeps: (kind: Kind) =>
-      `Nothing of ${items[kind].the} once ${items[kind].it} has passed through. Log lines from fixing a fault or stopping abuse are deleted within 7 days.`,
-    /** `mailed`: this page asked the server to email a link. */
-    senderAfterwards: (online: boolean, mailed: boolean): string =>
-      `${
-        online
-          ? "When you close this tab, the server forgets your links, within a minute at most. Its log lines stay."
-          : "Your links are gone from the server within a minute of the connection closing. Its log lines stay."
-      }${mailed ? " So do scrambled counts of the emails it sent for you, for up to an hour." : ""}`,
-    /** `emailed`: the link is one the server emailed. */
-    afterwardsRecipient: (emailed: boolean): string =>
-      emailed
-        ? "When this page disconnects, the server drops what it has about this page, within a minute at most, apart from what the code check needs: your email address and whether this tab entered the right code stay until the sender's page closes, and a scrambled count of the codes sent to your address and a scrambled count of the codes your IP address asked for, each for up to an hour. Its log lines stay."
-        : "When this page disconnects, the server drops what it has about this page, within a minute at most. Its log lines stay.",
-    logs: (kind: Kind) =>
-      `What happened, like a link being opened, with ${new Intl.ListFormat("en", {
-        type: "conjunction",
-      }).format(
-        Object.entries(logFields)
-          .filter(([field]) => field !== "event")
-          .map(([, [what]]) => what),
-      )}. Never names, keys, ${items[kind].data} or IP addresses.`,
-  },
   traces,
   footer: {
     label: "Site",
@@ -1492,7 +1339,7 @@ export const en = {
             ],
             [
               "",
-              "A log of this transfer's traces, under Technical details: when this page saw each event, which part holds what, the first 6 characters of each link ID and the route. Never a file name, key or IP address. Only in this tab's memory and never sent, until you leave the page or close the tab.",
+              "A log of this transfer's traces, under Traces: when this page saw each event, which part holds what, the first 6 characters of each link ID and the route. Never a file name, key or IP address. Only in this tab's memory and never sent, until you leave the page or close the tab.",
             ],
           ],
         },
@@ -1674,7 +1521,7 @@ export const en = {
             ],
             [
               "",
-              "A log of this transfer's traces, under What our server has right now: when their page saw each event, which part holds what, the first 6 characters of the link ID and the route. Never a file name, key or IP address. Only in the page's memory and never sent, until they leave the page or close the tab.",
+              "A log of this transfer's traces, under Traces: when their page saw each event, which part holds what, the first 6 characters of the link ID and the route. Never a file name, key or IP address. Only in the page's memory and never sent, until they leave the page or close the tab.",
             ],
             [
               "",

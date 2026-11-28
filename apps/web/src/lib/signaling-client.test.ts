@@ -62,31 +62,6 @@ function receive(message: unknown) {
   fake.dispatchEvent(Object.assign(new Event("message"), { data: JSON.stringify(message) }));
 }
 
-test("counts relay messages it sends and receives, by data length", () => {
-  const seen: number[] = [];
-  const client = connectSignaling({ url: "wss://x/signal", onRelay: (b) => seen.push(b) });
-  fake.readyState = 1;
-  client.send({ t: "relay", link: LINK, data: "abc" });
-  receive({ t: "relay", link: LINK, data: "abcdef" });
-  assert.deepEqual(seen, [3, 6]);
-});
-
-test("does not count other messages, invalid frames or sends on a closed socket", (t) => {
-  const warn = t.mock.method(console, "warn", () => {});
-  const seen: number[] = [];
-  const client = connectSignaling({ url: "wss://x/signal", onRelay: (b) => seen.push(b) });
-  fake.readyState = 1;
-  client.send({ t: "host", links: [LINK], turn: true });
-  client.send({ t: "join", link: LINK, attempt: LINK });
-  receive({ t: "joined", link: LINK, attempt: LINK, iceServers: [], turn: true });
-  fake.dispatchEvent(Object.assign(new Event("message"), { data: "not json" }));
-  fake.readyState = 3;
-  client.send({ t: "relay", link: LINK, data: "abc" });
-  assert.deepEqual(seen, []);
-  assert.equal(fake.sent.length, 2);
-  assert.equal(warn.mock.callCount(), 1);
-});
-
 test("tells onMessage each message sent and received, before subscribers, and no failed send or invalid frame", (t) => {
   t.mock.method(console, "warn", () => {});
   const seen: unknown[] = [];

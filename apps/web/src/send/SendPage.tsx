@@ -102,11 +102,9 @@ import { hashFile, sendFile } from "../lib/send-file.ts";
 import {
   armedLinks,
   CHECK_TIMEOUT_MS,
-  emailBound,
   findRecipient,
   hostedLinks,
   initialSenderState,
-  isActive,
   refusesRelay,
   SETUP_TIMEOUT_MS,
   type SenderAction,
@@ -114,7 +112,6 @@ import {
   type SenderState,
   update,
 } from "../lib/sender-state.ts";
-import { addRelay, NO_RELAYS } from "../lib/server-facts.ts";
 import { connectSignaling, type SignalingClient } from "../lib/signaling-client.ts";
 import { MAX_TEXT_BYTES, MAX_TEXT_LENGTH, textFile, textFitsOneChunk } from "../lib/text-secret.ts";
 import { createTraceLog, fromMessage, recordAt, type TraceEvent } from "../lib/trace-log.ts";
@@ -127,7 +124,7 @@ import {
   lede,
   Page,
   SECRET_HREF,
-  ServerDrawer,
+  TraceDrawer,
 } from "../ui.tsx";
 import { type CheckView, RecipientList } from "./RecipientList.tsx";
 
@@ -230,8 +227,6 @@ export type SendPreview = {
   useEmail?: boolean;
   /** The link's verification. Defaults to a safety number when email is chosen, else plain. */
   linkKind?: LinkKind;
-  mailed?: boolean;
-  viaRelay?: boolean;
   from?: string;
   fileError?: ErrorOf<"fileError">;
   nameError?: ErrorOf<"nameError">;
@@ -262,11 +257,9 @@ export function SendPage({
   const [hash, setHash] = useState<Hash>({ status: "none" });
   const [sender, setSender] = useState<SenderState>(initialSenderState);
   const [lostServer, setLostServer] = useState(false);
-  const [relayed, countRelay] = useReducer(addRelay, NO_RELAYS);
   // Only in page memory; kept through Send another, which adds a marker line.
   const [traces, addTrace] = useReducer(recordAt, "sender", createTraceLog);
   const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
-  const [viaRelay, setViaRelay] = useState(false);
   const [nameError, setNameError] = useState<ErrorOf<"nameError">>("");
   const [mail, setMail] = useState(false);
   // Emailing a link is opt-in: until the sender ticks it, there is no email field.
@@ -276,7 +269,6 @@ export function SendPage({
   const [checks, setChecks] = useState<Readonly<Record<string, CheckView>>>({});
   const [emailError, setEmailError] = useState(false);
   // ponytail: sticky for the page, since the server saw the key and keeps email counts for an hour
-  const [mailed, setMailed] = useState(false);
   const [fileError, setFileError] = useState<ErrorOf<"fileError">>("");
   const [from, setFrom] = useState("");
   const [fromError, setFromError] = useState<ErrorOf<"fromError">>("");
@@ -402,10 +394,6 @@ export function SendPage({
         dispatch({ type: "path", linkId, attempt, path });
         if (!refused) {
           trace({ t: "path", path, link: linkId });
-        }
-        // ponytail: sticky for the page, since the relay's log lines stay after the transfer
-        if (path === "relay" && !refused) {
-          setViaRelay(true);
         }
       }
     };
@@ -614,7 +602,6 @@ export function SendPage({
       return;
     }
     const signaling = connectSignaling({
-      onRelay: countRelay,
       onMessage: (...args) => {
         const event = fromMessage(...args);
         if (event) {
@@ -812,11 +799,9 @@ export function SendPage({
     setHash(preview.hash ?? { status: "none" });
     setChecks(preview.checks ?? {});
     setLostServer(preview.lostServer ?? false);
-    setViaRelay(preview.viaRelay ?? false);
     setMail(preview.mail ?? false);
     setUseEmail(preview.useEmail ?? false);
     setLinkKind(preview.linkKind ?? (preview.useEmail ? "check" : "plain"));
-    setMailed(preview.mailed ?? false);
     setFrom(preview.from ?? "");
     setFileError(preview.fileError ?? "");
     setNameError(preview.nameError ?? "");
@@ -932,9 +917,7 @@ export function SendPage({
         from: fromRef.current,
         lang,
       });
-      if (sent) {
-        setMailed(true);
-      } else {
+      if (!sent) {
         dispatchRef.current({ type: "email", linkId: link.linkId, status: "failed" });
       }
     }
@@ -994,9 +977,6 @@ export function SendPage({
     !text && (hash.status === "preparing" || hash.status === "failed") ? hash.status : undefined;
   const tooLong = textLength > MAX_TEXT_LENGTH;
   const full = sender.recipients.length >= MAX_LINKS;
-  // ponytail: counts by status, so it over-counts if a recipient's signaling drops mid-transfer; track joined/left if that matters
-  const connected = sender.recipients.filter(isActive).length;
-  const emailed = sender.recipients.filter(emailBound);
   const unfinished = sender.recipients.some((r) => r.status !== "delivered");
   const delivered = sender.recipients.filter((r) => r.status === "delivered").length;
   const allDone = hasRecipients && !unfinished;
@@ -1651,7 +1631,7 @@ export function SendPage({
             </div>
           )}
           {/* At the bar's end on every step; a closed dialog takes no space, an open one is in the top layer. */}
-          <ServerDrawer
+          <TraceDrawer
             onGreen={allDone}
             visible={shown}
             traces={traces}
@@ -1667,22 +1647,6 @@ export function SendPage({
                   ]
                 : []
             }
-            sees={t.server.seesSender}
-            holds={t.server.senderHolds({
-              online: !lostServer,
-              links: hostedLinks(sender).length,
-              connected,
-              relay: allowRelay,
-              emailed: emailed.length,
-              sending: emailed.filter((r) => r.mail === "sending").length,
-              mailed,
-              kind: text ? "secret" : "file",
-            })}
-            relayed={relayed}
-            afterwards={t.server.senderAfterwards(!lostServer, mailed)}
-            viaRelay={viaRelay}
-            emailed={mailed}
-            kind={text ? "secret" : "file"}
           />
         </div>
       </div>

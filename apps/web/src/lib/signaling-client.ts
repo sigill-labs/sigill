@@ -64,8 +64,6 @@ export function retryDelay(failures: number, random = Math.random): number {
 
 export type SignalingOptions = {
   url?: string;
-  /** Called with the data length of each relay message sent or received. */
-  onRelay?: (bytes: number) => void;
   /**
    * Called with each message sent, and each valid message received before the subscribers see
    * it. For in-page observers such as the trace log only: the messages carry link IDs and tokens.
@@ -75,7 +73,6 @@ export type SignalingOptions = {
 
 export function connectSignaling({
   url = defaultSignalingUrl(),
-  onRelay,
   onMessage,
 }: SignalingOptions = {}): SignalingClient {
   const messageListeners = new Set<(message: ServerMessage) => void>();
@@ -144,9 +141,6 @@ export function connectSignaling({
         console.warn("fidant: ignored an invalid signaling message");
         return;
       }
-      if (message.t === "relay") {
-        onRelay?.(message.data.length);
-      }
       onMessage?.("received", message);
       for (const listener of [...messageListeners]) {
         listener(message);
@@ -168,9 +162,6 @@ export function connectSignaling({
         return false;
       }
       socket.send(JSON.stringify(message));
-      if (message.t === "relay") {
-        onRelay?.(message.data.length);
-      }
       onMessage?.("sent", message);
       return true;
     },

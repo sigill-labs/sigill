@@ -119,7 +119,7 @@ async function openSender(
     mimeType: file.mime,
     buffer: file.bytes,
   });
-  await page.getByRole("button", { name: "Technical details" }).click();
+  await page.getByRole("button", { name: "Traces" }).click();
   await expect(page.getByText(sha256Hex(file.bytes))).toBeVisible();
   // The drawer covers the page until it is closed.
   await page.getByRole("button", { name: "Close" }).click();
@@ -171,13 +171,13 @@ async function receive(
   await expect(page.getByText(sizeText, { exact: true })).toBeVisible();
   await page.getByText("Technical details").click();
   await expect(page.getByText(`${file.size.toLocaleString("en-US")} bytes`)).toBeVisible();
-  await expect(page.getByRole("region", { name: "What our server has right now" })).toContainText(
-    "this page is connected to the sender",
+  await expect(page.getByRole("region", { name: "Traces" })).toContainText(
+    "Our server: Paired this page with the sender's on link ID",
   );
   if (sender) {
-    await expect(
-      sender.getByRole("region", { name: "What our server has right now", includeHidden: true }),
-    ).toContainText(/[1-9] recipients? connected right now/);
+    await expect(sender.getByRole("dialog", { name: "Traces", includeHidden: true })).toContainText(
+      "Our server: Paired a recipient's page with link ID",
+    );
   }
   const bytes = await download(page, file);
   // The typed name is unverified, so it stays on the offer screen only.
@@ -259,38 +259,23 @@ test("delivers a file to two recipients with a verified checksum", async ({
   // The send page has no "Why?" to open.
   await expect(sender.getByText("Why?", { exact: true })).toHaveCount(0);
 
-  const panel = sender.getByRole("region", {
-    name: "What our server has right now",
-    includeHidden: true,
-  });
-  await expect(panel).toContainText("None. The file goes directly between browsers.");
-  await expect(panel).toContainText(/[1-9]\d* setup messages? \(/);
   // The drawer's trace log names each link by its server-side prefix, never the file.
   const prefix = (link: string) => `${new URL(link).pathname.replace(/^\/r\//, "").slice(0, 6)}…`;
-  const senderTraces = sender.getByRole("region", {
-    name: "This transfer's traces",
-    includeHidden: true,
-  });
+  const senderTraces = sender.getByRole("dialog", { name: "Traces", includeHidden: true });
+  await expect(senderTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
   for (const link of links) {
     await expect(senderTraces).toContainText(`link ID ${prefix(link)}`);
   }
   await expect(senderTraces).toContainText(/Connection: Direct, /);
   await expect(senderTraces).not.toContainText(file.name);
 
-  const recipientPanel = received[0]?.page.getByRole("region", {
-    name: "What our server has right now",
-  });
-  if (!recipientPanel) {
+  const recipientTraces = received[0]?.page.getByRole("region", { name: "Traces" });
+  if (!recipientTraces) {
     throw new Error("no recipient");
   }
-  await expect(recipientPanel).toContainText(
-    "Nothing about this page once it notices the connection has closed",
-  );
-  await expect(recipientPanel).toContainText(/[1-9]\d* setup messages? \(/);
-  const recipientTraces = recipientPanel.getByRole("region", {
-    name: "This transfer's traces",
-    includeHidden: true,
-  });
+  // Once the transfer is done, this page's connection to our server has closed.
+  await expect(recipientTraces).toContainText(/Our server: This page connected\.[^)]*\(gone at /);
+  await expect(recipientTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
   await expect(recipientTraces).toContainText(`link ID ${prefix(links[0] ?? "")}`);
   await expect(recipientTraces).not.toContainText(file.name);
 });
@@ -385,9 +370,9 @@ test("refuses used, unknown and malformed links", async ({ demo, leaks, canary, 
   const malformed = await demo.open("malformed");
   await malformed.goto("/r/not-a-link#nope");
   await expect(malformed.getByText("This link doesn't work")).toBeVisible();
-  await expect(
-    malformed.getByRole("region", { name: "What our server has right now", includeHidden: true }),
-  ).toHaveCount(0);
+  await expect(malformed.getByRole("region", { name: "Traces", includeHidden: true })).toHaveCount(
+    0,
+  );
 });
 
 test("a sender whose connection setup fails logs why and lets the recipient try again", async ({
@@ -599,9 +584,9 @@ harness("a recipient who can't reach the server is told so", async ({ actor, lea
     recipient.getByText("The server connects you to the sender. Check your internet connection."),
   ).toBeVisible();
   await expect(recipient.getByRole("button", { name: "Try again" })).toBeVisible();
-  await expect(
-    recipient.getByRole("region", { name: "What our server has right now", includeHidden: true }),
-  ).toHaveCount(0);
+  await expect(recipient.getByRole("region", { name: "Traces", includeHidden: true })).toHaveCount(
+    0,
+  );
 });
 
 test("the sender's name must fit with the file name, and stray drops are ignored", async ({
@@ -677,9 +662,9 @@ test("a waiting recipient sees when the sender goes offline", async ({ demo, lea
   await expect(recipient.getByRole("button", { name: "Download" })).toBeVisible();
   await sender.close();
   await expect(recipient.getByText("The sender's page is closed")).toBeVisible();
-  await expect(
-    recipient.getByRole("region", { name: "What our server has right now" }),
-  ).toContainText("Nothing about this page once it notices the connection has closed");
+  await expect(recipient.getByRole("region", { name: "Traces" })).toContainText(
+    /Our server: This page connected\.[^)]*\(gone at /,
+  );
 });
 
 test("the Why? link to /how keeps a transfer alive on both pages", async ({
