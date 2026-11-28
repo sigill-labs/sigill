@@ -1,6 +1,8 @@
 // Display helpers shared by the sender and recipient pages.
 
+import type { TraceContext } from "../i18n/en.ts";
 import { type Lang, MESSAGES } from "../i18n/language.ts";
+import type { Role, TraceEntry, What } from "./trace-log.ts";
 
 /** Lowercase hex, as `shasum -a 256` prints it. */
 export function toHex(bytes: Uint8Array): string {
@@ -80,4 +82,35 @@ export function formatTimeLeft(seconds: number, lang: Lang): string {
     value,
   );
   return MESSAGES[lang].format.timeLeft(duration);
+}
+
+/** A local 24-hour time with seconds, like "14:02:40". */
+export function formatClock(ms: number): string {
+  const date = new Date(ms);
+  return [date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
+}
+
+/** A trace log line in words: its time, the part that holds the trace, what it holds and until when. */
+export function describeTrace(
+  entry: TraceEntry,
+  role: Role,
+  lang: Lang,
+): { time: string; part: string; what: string; until: string } {
+  const texts = MESSAGES[lang].traces;
+  // Each kind's text takes its own kind of line; TypeScript can't follow that through the lookup.
+  const what = texts.what[entry.what.kind] as (what: What, context: TraceContext) => string;
+  const { until } = entry;
+  return {
+    time: formatClock(entry.at),
+    part: texts.parts[entry.part](role),
+    what: what(entry.what, { role, size: (bytes) => formatBytes(bytes, lang) }),
+    until:
+      until.kind === "seen"
+        ? texts.seen(formatClock(until.at))
+        : until.kind === "stated"
+          ? texts.stated[until.how](entry.part)
+          : texts.stays(role),
+  };
 }

@@ -1,9 +1,10 @@
 // English text. sv.ts must have the same keys; messages.test.ts checks it.
 // Plain strings, or functions for text with numbers or names in it.
 
-import type { LogFields } from "@fidant/protocol";
+import type { ConnectionPath, ErrorCode, LogFields, RefusedReason } from "@fidant/protocol";
 import type { Line } from "../how/traces.ts";
 import type { Kind, Tie } from "../lib/server-facts.ts";
+import type { Part, Role, Stated, What } from "../lib/trace-log.ts";
 
 /** A place on the /how/traces explorer and the traces it keeps. */
 export type Place = { name: string; kept: string; never: string; lines: readonly Line[] };
@@ -58,6 +59,32 @@ export type Nouns = Record<
   }
 >;
 
+/** What the trace log's text needs besides a line: whose page it is, and how to write a size. */
+export type TraceContext = { role: Role; size: (bytes: number) => string };
+
+/**
+ * The trace log's text (lib/trace-log.ts). Keyed by its kinds, so a new kind fails the typecheck
+ * until it is worded here and in sv.ts. Lines get only the fields the model carries: 6-character
+ * link IDs, counts, sizes, routes and reason codes.
+ */
+export type TraceTexts = {
+  heading: string;
+  note: string;
+  empty: string;
+  parts: Record<Part, (role: Role) => string>;
+  what: {
+    [K in What["kind"]]: (what: Extract<What, { kind: K }>, context: TraceContext) => string;
+  };
+  /** The part's own wording of a documented end. */
+  stated: Record<Stated, (part: Part) => string>;
+  /** `clock` is already formatted, like "14:02:40". */
+  seen: (clock: string) => string;
+  stays: (role: Role) => string;
+  refused: Record<RefusedReason, string>;
+  errors: Record<ErrorCode, string>;
+  paths: Record<ConnectionPath, string>;
+};
+
 const items: Nouns = {
   file: {
     label: "File data",
@@ -91,6 +118,130 @@ const items: Nouns = {
     key: "the part of that link that unlocks what is shared",
     unlocks: "the part that unlocks what is shared",
     seen: "the encrypted data passing through, with its size rounded up so the exact size stays hidden",
+  },
+};
+
+/** A link ID as the log shows it: its 6-character prefix and an ellipsis. */
+const id = (link: string) => `${link}…`;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+const traces: TraceTexts = {
+  heading: "This transfer's traces",
+  note: "Times are when this page saw each event.",
+  empty: "Nothing yet.",
+  parts: {
+    server: () => "Our server",
+    serverLog: () => "Our server's log",
+    relay: () => "Our relay",
+    browser: () => "This browser",
+    peer: (role) => (role === "sender" ? "The recipient's browser" : "The sender's browser"),
+    connection: () => "Connection",
+  },
+  what: {
+    connected: () =>
+      "This page connected. It sees this page's IP address and the usual browser details any website gets.",
+    holdsLink: ({ link }) => `Link ID ${id(link)}, never the part of the link that unlocks it.`,
+    alreadyHosted: () =>
+      "Didn't take these links, because another connection still holds one of them. This page asks again shortly.",
+    paired: ({ link }, { role }) =>
+      role === "sender"
+        ? `Paired a recipient's page with link ID ${id(link)}. It sees both pages' IP addresses.`
+        : `Paired this page with the sender's on link ID ${id(link)}. It sees both pages' IP addresses.`,
+    rejoined: ({ link }, { role }) =>
+      role === "sender"
+        ? `That the recipient's connection on link ID ${id(link)} dropped, and when, because their page joined again.`
+        : `That this page's connection on link ID ${id(link)} dropped, and when, because it joined again.`,
+    credentials: () => "Made relay credentials for this pair and sent them to both pages.",
+    relayed: ({ link, count, bytes }, { size }) =>
+      `Passed on ${plural(count, "encrypted setup message", "encrypted setup messages")} (${size(bytes)}) for link ID ${id(link)}, which it can't read.`,
+    serverToken: ({ link }) =>
+      `A random token for this page's place in the transfer on link ID ${id(link)}, which it doesn't log.`,
+    logHost: ({ links }) =>
+      links === 0
+        ? "A line that this page holds no links."
+        : `A line that this page holds ${plural(links, "link", "links")}, without their IDs.`,
+    logJoined: ({ link }, { role }) =>
+      role === "sender"
+        ? `A line that a recipient's page joined link ID ${id(link)}.`
+        : `A line that this page joined link ID ${id(link)}.`,
+    logRelay: ({ link, count, bytes }, { size }) =>
+      `${plural(count, "line", "lines")} for setup messages on link ID ${id(link)}, with their sizes (${size(bytes)} in all).`,
+    logRefused: ({ reason }, { role }) =>
+      role === "sender"
+        ? `A line that this page turned a recipient away, with the reason: ${traces.refused[reason]}.`
+        : `A line that this page was turned away, with the reason: ${traces.refused[reason]}.`,
+    logLeft: ({ link }, { role }) =>
+      role === "sender"
+        ? `A line that the recipient's page left link ID ${id(link)}.`
+        : `A line that this page left link ID ${id(link)}.`,
+    logHostGone: () => "A line that the sender's page was gone.",
+    logHostClosed: ({ links }) =>
+      `A line that this page's connection closed while it held ${plural(links, "link", "links")}, without their IDs.`,
+    logPath: ({ path }) =>
+      `A line with how the connection went: ${traces.paths[path]}. No link ID.`,
+    logResume: ({ link, refused }) =>
+      refused
+        ? `A line that this page asked to take back its place on link ID ${id(link)}, and couldn't.`
+        : `A line that this page took back its place on link ID ${id(link)}.`,
+    logError: ({ code }) =>
+      `A line that it rejected a message from this page: ${traces.errors[code]}.`,
+    stunSees: () =>
+      "Sees each browser's public IP address when the browser asks it for that address.",
+    relayAdded: () =>
+      "Added to this connection, so it can see both browsers' IP addresses, even if a direct route wins.",
+    relayCarries: () => "Carries the encrypted data between the two browsers. It can't unlock it.",
+    linkKey: ({ link }) =>
+      `Link ${id(link)} and the part that unlocks it, only in this tab's memory.`,
+    relayCredentials: () => "Relay credentials from our server.",
+    browserToken: ({ link }) =>
+      `A random token from our server for this page's place in the transfer on link ID ${id(link)}, in memory.`,
+    addressBar: () =>
+      "The link, with the part that unlocks it, in the address bar and the browser's history.",
+    received: ({ secret }) =>
+      secret ? "The secret, in this page's memory." : "The file, where you saved it.",
+    newTransfer: () => "A new transfer starts here.",
+    delivered: ({ secret }) =>
+      secret
+        ? "The secret, checked against what this page sent."
+        : "The file, checked against what this page sent.",
+    path: ({ path }) =>
+      `${traces.paths[path].charAt(0).toUpperCase()}${traces.paths[path].slice(1)}.`,
+  },
+  stated: {
+    connection: () => "until this page's connection to our server closes",
+    dropped: () =>
+      "the connection dropped, so our server lets go within a minute, after keeping a transfer's place for up to 30 seconds",
+    log30d: () => "kept in our server's log for 30 days",
+    notKept: () => "not kept",
+    tab: (part) => (part === "peer" ? "while their tab is open" : "while this tab is open"),
+    credential5m: () => "usable for 5 minutes to start a relayed connection",
+    relay7d: () =>
+      "not logged; a temporary log, only to fix a fault or stop abuse, is kept for at most 7 days",
+    history: () => "until the browser's history is cleared",
+    peerConnection: () => "until the connection between the two browsers closes",
+    attempt: () => "until this transfer attempt ends",
+  },
+  seen: (clock) => `gone at ${clock}`,
+  stays: (role) => (role === "sender" ? "until they delete it" : "until you delete it"),
+  refused: {
+    used: "the link was already used",
+    busy: "the sender was busy with another recipient",
+    unknown: "the link isn't open",
+    drop: "the sender gave up on that attempt",
+    starting: "our server had just started",
+  },
+  errors: {
+    "bad-message": "a message it couldn't read",
+    "wrong-role": "a message this page's role doesn't send",
+    "already-hosted": "a link another connection holds",
+    "already-joined": "a join for another link on the same connection",
+    "not-on-link": "a message for a link this page isn't on",
+  },
+  paths: {
+    direct: "direct, with no relay",
+    stun: "direct, over the public addresses our relay helped find",
+    relay: "through our relay",
+    failed: "failed",
   },
 };
 
@@ -822,6 +973,7 @@ export const en = {
           .map(([, [what]]) => what),
       )}. Never names, keys, ${items[kind].data} or IP addresses.`,
   },
+  traces,
   footer: {
     label: "Site",
     file: "Send a file",

@@ -2,7 +2,7 @@
 
 import type { LogFields } from "@fidant/protocol";
 import type { Kind, Tie } from "../lib/server-facts.ts";
-import type { Messages, Nouns, Section, Sections } from "./en.ts";
+import type { Messages, Nouns, Section, Sections, TraceTexts } from "./en.ts";
 
 const items: Nouns = {
   file: {
@@ -74,6 +74,132 @@ const logFields: Record<"event" | keyof LogFields, readonly [string, string]> = 
     "platsen på datorn där servern kan nås (dess portnummer)",
     "För att bekräfta att servern startade där den ska.",
   ],
+};
+
+/** Ett länk-ID som loggen visar det: de 6 första tecknen och en ellips. */
+const id = (link: string) => `${link}…`;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+const traces: TraceTexts = {
+  heading: "Spåren efter den här överföringen",
+  note: "Tiderna är när den här sidan såg varje händelse.",
+  empty: "Inget ännu.",
+  parts: {
+    server: () => "Vår server",
+    serverLog: () => "Vår servers logg",
+    relay: () => "Vårt relä",
+    browser: () => "Den här webbläsaren",
+    peer: (role) => (role === "sender" ? "Mottagarens webbläsare" : "Avsändarens webbläsare"),
+    connection: () => "Anslutningen",
+  },
+  what: {
+    connected: () =>
+      "Den här sidan anslöt. Servern ser sidans IP-adress och de vanliga uppgifterna om webbläsaren som alla webbplatser får.",
+    holdsLink: ({ link }) => `Länk-ID ${id(link)}, aldrig den del av länken som låser upp den.`,
+    alreadyHosted: () =>
+      "Tog inte emot länkarna, eftersom en annan anslutning fortfarande har en av dem. Den här sidan frågar igen om en stund.",
+    paired: ({ link }, { role }) =>
+      role === "sender"
+        ? `Kopplade ihop en mottagares sida med länk-ID ${id(link)}. Servern ser båda sidornas IP-adresser.`
+        : `Kopplade ihop den här sidan med avsändarens via länk-ID ${id(link)}. Servern ser båda sidornas IP-adresser.`,
+    rejoined: ({ link }, { role }) =>
+      role === "sender"
+        ? `Att mottagarens anslutning för länk-ID ${id(link)} bröts, och när, eftersom deras sida anslöt igen.`
+        : `Att den här sidans anslutning för länk-ID ${id(link)} bröts, och när, eftersom sidan anslöt igen.`,
+    credentials: () =>
+      "Skapade inloggningsuppgifter till reläet för det här paret och skickade dem till båda sidorna.",
+    relayed: ({ link, count, bytes }, { size }) =>
+      `Skickade vidare ${plural(count, "krypterat uppkopplingsmeddelande", "krypterade uppkopplingsmeddelanden")} (${size(bytes)}) för länk-ID ${id(link)}, som servern inte kan läsa.`,
+    serverToken: ({ link }) =>
+      `Ett slumpmässigt värde för den här sidans plats i överföringen på länk-ID ${id(link)}, som servern inte loggar.`,
+    logHost: ({ links }) =>
+      links === 0
+        ? "En rad om att den här sidan inte har några länkar."
+        : `En rad om att den här sidan har ${plural(links, "länk", "länkar")}, utan deras ID.`,
+    logJoined: ({ link }, { role }) =>
+      role === "sender"
+        ? `En rad om att en mottagares sida anslöt till länk-ID ${id(link)}.`
+        : `En rad om att den här sidan anslöt till länk-ID ${id(link)}.`,
+    logRelay: ({ link, count, bytes }, { size }) =>
+      `${plural(count, "rad", "rader")} om uppkopplingsmeddelanden för länk-ID ${id(link)}, med deras storlek (${size(bytes)} totalt).`,
+    logRefused: ({ reason }, { role }) =>
+      role === "sender"
+        ? `En rad om att den här sidan nekade en mottagare, med orsaken: ${traces.refused[reason]}.`
+        : `En rad om att den här sidan nekades, med orsaken: ${traces.refused[reason]}.`,
+    logLeft: ({ link }, { role }) =>
+      role === "sender"
+        ? `En rad om att mottagarens sida lämnade länk-ID ${id(link)}.`
+        : `En rad om att den här sidan lämnade länk-ID ${id(link)}.`,
+    logHostGone: () => "En rad om att avsändarens sida var borta.",
+    logHostClosed: ({ links }) =>
+      `En rad om att den här sidans anslutning stängdes medan den hade ${plural(links, "länk", "länkar")}, utan deras ID.`,
+    logPath: ({ path }) => `En rad om hur anslutningen gick: ${traces.paths[path]}. Inget länk-ID.`,
+    logResume: ({ link, refused }) =>
+      refused
+        ? `En rad om att den här sidan bad om att få tillbaka sin plats på länk-ID ${id(link)}, men inte fick det.`
+        : `En rad om att den här sidan fick tillbaka sin plats på länk-ID ${id(link)}.`,
+    logError: ({ code }) =>
+      `En rad om att servern avvisade ett meddelande från den här sidan: ${traces.errors[code]}.`,
+    stunSees: () =>
+      "Ser varje webbläsares offentliga IP-adress när webbläsaren frågar reläet efter den.",
+    relayAdded: () =>
+      "Lades till i anslutningen, så reläet kan se båda webbläsarnas IP-adresser, även om en direkt väg vinner.",
+    relayCarries: () =>
+      "För krypterad data mellan de två webbläsarna. Reläet kan inte låsa upp den.",
+    linkKey: ({ link }) =>
+      `Länk ${id(link)} och den del som låser upp den, bara i den här flikens minne.`,
+    relayCredentials: () => "Inloggningsuppgifter till reläet, från vår server.",
+    browserToken: ({ link }) =>
+      `Ett slumpmässigt värde från vår server för den här sidans plats i överföringen på länk-ID ${id(link)}, i minnet.`,
+    addressBar: () =>
+      "Länken, med den del som låser upp den, i adressfältet och webbläsarens historik.",
+    received: ({ secret }) =>
+      secret ? "Hemligheten, i den här sidans minne." : "Filen, där du sparade den.",
+    newTransfer: () => "En ny överföring börjar här.",
+    delivered: ({ secret }) =>
+      secret
+        ? "Hemligheten, kontrollerad mot det den här sidan skickade."
+        : "Filen, kontrollerad mot det den här sidan skickade.",
+    path: ({ path }) =>
+      `${traces.paths[path].charAt(0).toUpperCase()}${traces.paths[path].slice(1)}.`,
+  },
+  stated: {
+    connection: () => "tills den här sidans anslutning till vår server stängs",
+    dropped: () =>
+      "anslutningen bröts, så vår server släpper den inom en minut, efter att ha hållit kvar en överförings plats i upp till 30 sekunder",
+    log30d: () => "sparas i vår servers logg i 30 dagar",
+    notKept: () => "sparas inte",
+    tab: (part) =>
+      part === "peer" ? "medan deras flik är öppen" : "medan den här fliken är öppen",
+    credential5m: () => "kan användas i 5 minuter för att starta en anslutning via reläet",
+    relay7d: () =>
+      "loggas inte; en tillfällig logg, bara för att felsöka eller stoppa missbruk, sparas i högst 7 dagar",
+    history: () => "tills webbläsarens historik rensas",
+    peerConnection: () => "tills anslutningen mellan de två webbläsarna stängs",
+    attempt: () => "tills det här överföringsförsöket tar slut",
+  },
+  seen: (clock) => `borta kl. ${clock}`,
+  stays: (role) => (role === "sender" ? "tills de raderar den" : "tills du raderar den"),
+  refused: {
+    used: "länken var redan använd",
+    busy: "avsändaren var upptagen med en annan mottagare",
+    unknown: "länken är inte öppen",
+    drop: "avsändaren gav upp det försöket",
+    starting: "vår server hade precis startat",
+  },
+  errors: {
+    "bad-message": "ett meddelande som servern inte kunde läsa",
+    "wrong-role": "ett meddelande som den här sidans roll inte skickar",
+    "already-hosted": "en länk som en annan anslutning har",
+    "already-joined": "en anslutning till en annan länk på samma uppkoppling",
+    "not-on-link": "ett meddelande för en länk som den här sidan inte är ansluten till",
+  },
+  paths: {
+    direct: "direkt, utan relä",
+    stun: "direkt, via de offentliga adresser som vårt relä hjälpte till att hitta",
+    relay: "via vårt relä",
+    failed: "misslyckades",
+  },
 };
 
 export const sv: Messages = {
@@ -777,6 +903,7 @@ export const sv: Messages = {
           .map(([, [what]]) => what),
       )}. Aldrig namn, nycklar, ${items[kind].data} eller IP-adresser.`,
   },
+  traces,
   footer: {
     file: "Skicka en fil",
     label: "Webbplats",

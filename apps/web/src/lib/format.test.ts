@@ -4,6 +4,7 @@ import {
   displayName,
   etaTracker,
   formatBytes,
+  formatClock,
   formatProgress,
   formatTimeLeft,
   toHex,
@@ -64,4 +65,10 @@ test("formatTimeLeft rounds to steps that don't flicker", () => {
   assert.equal(formatTimeLeft(56, "en"), "About 1 minute left");
   assert.equal(formatTimeLeft(150, "sv"), "Ungefär 3 minuter kvar");
   assert.equal(formatTimeLeft(7200, "sv"), "Ungefär 2 timmar kvar");
+});
+
+test("formatClock writes local 24-hour time with seconds", () => {
+  assert.equal(formatClock(new Date(2026, 10, 28, 9, 5, 7).getTime()), "09:05:07");
+  assert.equal(formatClock(new Date(2026, 10, 28, 23, 59, 59, 999).getTime()), "23:59:59");
+  assert.equal(formatClock(new Date(2026, 10, 28, 0, 0, 0).getTime()), "00:00:00");
 });
