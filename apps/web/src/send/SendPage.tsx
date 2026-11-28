@@ -117,6 +117,7 @@ import {
 import { addRelay, NO_RELAYS } from "../lib/server-facts.ts";
 import { connectSignaling, type SignalingClient } from "../lib/signaling-client.ts";
 import { MAX_TEXT_BYTES, MAX_TEXT_LENGTH, textFile, textFitsOneChunk } from "../lib/text-secret.ts";
+import { createTraceLog, fromMessage, recordAt, type TraceEvent } from "../lib/trace-log.ts";
 import {
   FILE_HREF,
   field,
@@ -262,6 +263,9 @@ export function SendPage({
   const [sender, setSender] = useState<SenderState>(initialSenderState);
   const [lostServer, setLostServer] = useState(false);
   const [relayed, countRelay] = useReducer(addRelay, NO_RELAYS);
+  // Only in page memory; kept through Send another, which adds a marker line.
+  const [traces, addTrace] = useReducer(recordAt, "sender", createTraceLog);
+  const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
   const [viaRelay, setViaRelay] = useState(false);
   const [nameError, setNameError] = useState<ErrorOf<"nameError">>("");
   const [mail, setMail] = useState(false);
@@ -338,7 +342,10 @@ export function SendPage({
     });
     clearTimeout(connection.deadline);
     connection.abort.abort(new Error("connection closed"));
-    connection.peer?.close();
+    if (connection.peer) {
+      connection.peer.close();
+      trace({ t: "peer-closed", link: linkId });
+    }
   };
 
   const sendPath = (linkId: string, connection: Connection, path: ConnectionPath) => {
@@ -389,6 +396,9 @@ export function SendPage({
         const refused = refusesRelay(latest, attempt, path);
         sendPath(linkId, connection, refused ? "failed" : path);
         dispatch({ type: "path", linkId, attempt, path });
+        if (!refused) {
+          trace({ t: "path", path, link: linkId });
+        }
         // ponytail: sticky for the page, since the relay's log lines stay after the transfer
         if (path === "relay" && !refused) {
           setViaRelay(true);
@@ -403,6 +413,7 @@ export function SendPage({
       iceServers,
       check: recipient.check === true,
       onPath,
+      onRelayAdded: () => trace({ t: "relay-added", link: linkId }),
       // The same `host` again surfaces a socket that died without closing (decision 0033).
       onDisconnected: () => {
         if (connectionsRef.current.get(linkId) === connection) {
@@ -481,6 +492,7 @@ export function SendPage({
         );
       },
       onClose(reason, _detail, name) {
+        trace({ t: "peer-closed", link: linkId });
         console.warn(`fidant: sender dropped a connection: ${reason}${name ? ` (${name})` : ""}`);
         if (reason === "connection-failed") {
           sendPath(linkId, connection, "failed");
@@ -535,14 +547,24 @@ export function SendPage({
   // Applies an action, then carries out its effects. Never called during render.
   dispatchRef.current = (action: SenderAction) => {
     const hosted = hostedLinks(senderRef.current).join();
+    const before = senderRef.current.recipients.map((r) => r.linkId);
     const next = update(senderRef.current, action);
     const changed = next.state !== senderRef.current;
     if (changed) {
+      // Every way a link comes or goes: add, remove, Send another, an email refusal replacing it.
+      const after = next.state.recipients.map((r) => r.linkId);
+      for (const link of before.filter((id) => !after.includes(id))) {
+        trace({ t: "link-removed", link });
+      }
+      for (const link of after.filter((id) => !before.includes(id))) {
+        trace({ t: "link-added", link });
+      }
       senderRef.current = next.state;
       setSender(next.state);
     }
     // Only fixed text and counts: the system keeps a notification outside the page.
     if (changed && action.type === "receipt" && action.match) {
+      trace({ t: "delivered", secret: text });
       const { recipients } = next.state;
       const done = recipients.filter((r) => r.status === "delivered").length;
       const all = done === recipients.length;
@@ -587,7 +609,15 @@ export function SendPage({
     if (preview) {
       return;
     }
-    const signaling = connectSignaling({ onRelay: countRelay });
+    const signaling = connectSignaling({
+      onRelay: countRelay,
+      onMessage: (...args) => {
+        const event = fromMessage(...args);
+        if (event) {
+          trace(event);
+        }
+      },
+    });
     signalingRef.current = signaling;
     let disposed = false;
     const dispatch = (action: SenderAction) => dispatchRef.current(action);
@@ -602,6 +632,8 @@ export function SendPage({
     let rehost: ReturnType<typeof setTimeout> | undefined;
 
     signaling.onOpen(() => {
+      // Before the `resume` and `host` below, which the log reads against this socket.
+      trace({ t: "socket-open" });
       clearTimeout(lost);
       lost = undefined;
       setLostServer(false);
@@ -619,7 +651,8 @@ export function SendPage({
       }
       host();
     });
-    signaling.onClose(({ byClient }) => {
+    signaling.onClose(({ code, byClient }) => {
+      trace({ t: "socket-closed", code });
       if (byClient || disposed) {
         return;
       }
@@ -926,6 +959,7 @@ export function SendPage({
   // every card: each link stops being hosted. The name stays, now unlocked.
   const onSendAnother = () => {
     dispatchRef.current({ type: "reset" });
+    trace({ t: "new-transfer" });
     setChecks({});
     prepare(undefined);
     setFileError("");
@@ -1583,6 +1617,7 @@ export function SendPage({
           <ServerDrawer
             onGreen={allDone}
             visible={shown}
+            traces={traces}
             facts={
               file && !text
                 ? [

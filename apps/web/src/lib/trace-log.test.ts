@@ -7,6 +7,7 @@ import {
   MAX_ENTRIES,
   type Role,
   record,
+  recordAt,
   type SignalMessage,
   type TraceEvent,
   type TraceLog,
@@ -325,4 +326,12 @@ test("recording leaves the old log as it was", () => {
   const snapshot = JSON.stringify(before);
   record(before, fromMessage(...relay()) as TraceEvent, T0 + 5);
   assert.equal(JSON.stringify(before), snapshot);
+});
+
+test("recordAt records the event at the time it carries", () => {
+  const log = createTraceLog("sender");
+  assert.deepEqual(
+    recordAt(log, { event: { t: "socket-open" }, at: T0 }),
+    record(log, { t: "socket-open" }, T0),
+  );
 });

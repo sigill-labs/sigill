@@ -192,6 +192,14 @@ export function createTraceLog(role: Role): TraceLog {
   return { role, entries: [], resuming: [] };
 }
 
+/** `record` as a `useReducer` reducer: the page stamps each event, so the reducer stays pure. */
+export function recordAt(
+  log: TraceLog,
+  { event, at }: { event: TraceEvent; at: number },
+): TraceLog {
+  return record(log, event, at);
+}
+
 function prefix(link: string): string {
   return link.slice(0, LINK_PREFIX);
 }

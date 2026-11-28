@@ -8,9 +8,10 @@ import { Alert, AlertDescription, AlertTitle } from "#components/ui/alert";
 import { buttonVariants } from "#components/ui/button";
 import { useI18n } from "./i18n/I18n.tsx";
 import { LANGUAGE_NAMES, type Lang, localizedPath } from "./i18n/language.ts";
-import { formatBytes } from "./lib/format.ts";
+import { describeTrace, formatBytes } from "./lib/format.ts";
 import type { OpenPath } from "./lib/peer.ts";
 import type { Kind, Relayed } from "./lib/server-facts.ts";
+import type { TraceLog as Log } from "./lib/trace-log.ts";
 import type { Theme } from "./theme.ts";
 
 export const ICONS = {
@@ -600,6 +601,45 @@ function serverRows(
   ];
 }
 
+/**
+ * This page's traces, oldest first, each with when this page saw it, who holds it, what and until
+ * when. No live region: a line per signaling message would flood a screen reader.
+ */
+export function TraceLog({ log }: { log: Log }) {
+  const { t, lang } = useI18n();
+  const headingId = useId();
+  return (
+    <section class="mt-6" aria-labelledby={headingId}>
+      <h3 id={headingId} class="m-0 text-[length:inherit] font-semibold">
+        {t.traces.heading}
+      </h3>
+      <p class="mt-1 mb-0 text-muted-foreground">{t.traces.note}</p>
+      {log.entries.length === 0 ? (
+        <p class="mt-3 mb-0">{t.traces.empty}</p>
+      ) : (
+        <ol class="mt-3 mb-0 grid list-none gap-2 p-0">
+          {log.entries.map((entry, index) => {
+            const line = describeTrace(entry, log.role, lang);
+            return (
+              // Keyed by index: lines only change or drop off the front, and hold no state of their own.
+              <li key={index} class="wrap-anywhere">
+                <time
+                  datetime={new Date(entry.at).toISOString()}
+                  class="text-muted-foreground tabular-nums"
+                >
+                  {line.time}
+                </time>{" "}
+                <span class="font-medium">{line.part}:</span> {line.what}{" "}
+                <span class="text-muted-foreground">({line.until})</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </section>
+  );
+}
+
 /** The receive page's server facts: a section with a disclosure. */
 export function ServerPanel(props: ServerPanelProps) {
   const { t, lang } = useI18n();
@@ -621,8 +661,11 @@ export function ServerDrawer({
   facts,
   visible,
   onGreen,
+  traces,
   ...panel
 }: ServerPanelProps & {
+  /** This page's trace log, shown under the server facts. */
+  traces: Log;
   /** The file's facts, shown above the server's; empty for a secret. */
   facts: ReadonlyArray<readonly [string, ComponentChildren]>;
   /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it. */
@@ -697,6 +740,7 @@ export function ServerDrawer({
             </h3>
             <Facts rows={serverRows(t, lang, panel)} />
           </section>
+          <TraceLog log={traces} />
         </div>
       </dialog>
     </>
