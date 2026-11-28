@@ -20,7 +20,7 @@ import {
   test,
 } from "../src/transfer.ts";
 
-// The 8 MiB transfer and its leak scan take longer than Playwright's default.
+// Each test's transfers and the leak scan after it can take longer than Playwright's default.
 test.describe.configure({ timeout: 90_000 });
 
 type Tamper = "flip" | "other";
