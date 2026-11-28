@@ -1257,7 +1257,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "Flikens ikon som den senast var, en grön prick medan en överföring pågick, en bock när den var klar eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, tills du rensar historiken.",
+              "Flikens ikon, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, tills du rensar historiken. Chrome sparar ikonen som den senast var: en grön prick medan en överföring pågick, en bock när den var klar eller en röd stoppskylt där sidan behövde en säker anslutning. Firefox och Safari sparar ikonen sidan öppnades med: logotypen eller stoppskylten. Ett privat fönster sparar ingen.",
             ],
             ["", "Ditt val av tema och språk, i webbläsarens lokala lagring, tills du rensar den."],
             [
@@ -1465,7 +1465,7 @@ export const sv: Messages = {
             ],
             [
               "",
-              "Flikens ikon som den senast var, en grön prick medan överföringen pågick, en bock när den kommit fram eller en röd stoppskylt där sidan behövde en säker anslutning, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, länken också, tills historiken rensas.",
+              "Flikens ikon, bland webbläsarens sparade webbplatsikoner, bredvid historikposten för varje sida fliken visade, länken också, tills historiken rensas. Chrome sparar ikonen som den senast var: en grön prick medan överföringen pågick, en bock när den kommit fram eller en röd stoppskylt där sidan behövde en säker anslutning. Firefox och Safari sparar ikonen sidan öppnades med: logotypen eller stoppskylten. Ett privat fönster sparar ingen.",
             ],
             ["", "Deras val av tema och språk, i webbläsarens lokala lagring, tills de rensas."],
           ],
