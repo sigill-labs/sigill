@@ -26,15 +26,29 @@ for (const path of ["/privacy", "/privacy/"]) {
   });
 }
 
-test("the Privacy page opens without a secure connection", async ({ page }) => {
+test("without a secure connection, transfer pages say so and Privacy still opens", async ({
+  page,
+}) => {
   // The stack always serves HTTPS, so pretend the context is insecure.
   await page.addInitScript(() =>
     Object.defineProperty(window, "isSecureContext", { value: false }),
   );
+  const icon = page.locator('link[rel="icon"][type="image/svg+xml"]');
   await page.goto("/send");
   await expect(page.locator("main h1")).toHaveText("This page needs a secure connection");
+  // The tab names the screen it shows (WCAG 2.4.2) and its icon is the red stop sign.
+  await expect(page).toHaveTitle("Secure connection needed – Fidant");
+  await expect(icon).toHaveAttribute("href", /%23dc2626/);
+  for (const path of ["/send/secret", "/r/x#k"]) {
+    await page.goto(path);
+    await expect(page).toHaveTitle("Secure connection needed – Fidant");
+  }
+  await page.goto("/sv/skicka");
+  await expect(page).toHaveTitle("Säker anslutning krävs – Fidant");
   await page.goto("/privacy");
   await expect(page.locator("main h1")).toHaveText("Privacy");
+  await expect(page).toHaveTitle("Privacy – Fidant");
+  await expect(icon).not.toHaveAttribute("href", /%23dc2626/);
 });
 
 test("leaving /send for Privacy and going back keeps the file and recipient", async ({

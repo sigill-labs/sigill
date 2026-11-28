@@ -1,10 +1,12 @@
 // The tab's icon follows the transfer: a green dot while one is open, like the one beside Send in
-// the header, and a green check once it is done.
+// the header, and a green check once it is done. The screen that asks for a secure connection
+// shows a red stop sign, since nothing can be sent or received there.
 //
 // Every icon is a data: URL, the normal one too, so a change of status asks the server for
 // nothing and the server can't tell from a request that a transfer started, finished or stopped.
 
 export type TransferStatus = "idle" | "active" | "done";
+export type TabIcon = TransferStatus | "insecure";
 
 /** One status for the whole tab: an open transfer outranks a finished one. */
 export function overallStatus(statuses: readonly TransferStatus[]): TransferStatus {
@@ -20,7 +22,7 @@ const colours = (tile: string, ink: string) =>
 const tile = (style: string, glyph: string) =>
   `<style>${style}</style><rect width="32" height="32" rx="7"/><g fill="none" stroke-linecap="round">${glyph}</g>`;
 
-const ICON: Record<TransferStatus, string> = {
+const ICON: Record<TabIcon, string> = {
   idle: tile(
     `${colours("#111", "#fff")}@media (prefers-color-scheme:dark){${colours("#f5f5f5", "#111")}}`,
     MARK,
@@ -30,9 +32,15 @@ const ICON: Record<TransferStatus, string> = {
   active:
     '<circle cx="16" cy="16" r="15.5" fill="#10b981" fill-opacity=".3"/><circle cx="16" cy="16" r="10.5" fill="#10b981"/>',
   done: tile(colours("#059669", "#fff"), CHECK),
+  // A stop sign: a red octagon (red-600) with a white rim and a white bar, which still reads at
+  // 16 pixels where the word STOP would not.
+  insecure:
+    '<path d="M9.4.5h13.2l8.9 8.9v13.2l-8.9 8.9H9.4L.5 22.6V9.4z" fill="#dc2626"/>' +
+    '<path d="M10.3 2.75h11.4l7.55 7.55v11.4l-7.55 7.55H10.3l-7.55-7.55V10.3z" fill="none" stroke="#fff" stroke-width="1.5"/>' +
+    '<rect x="8" y="13.5" width="16" height="5" rx="1" fill="#fff"/>',
 };
 
-export function faviconHref(status: TransferStatus): string {
+export function faviconHref(status: TabIcon): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${ICON[status]}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

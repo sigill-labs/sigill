@@ -14,6 +14,7 @@ import { type DevState, STATES } from "./states.ts";
 
 const STATE_KEY = "dev-state";
 const OPEN_KEY = "dev-open";
+const INSECURE_KEY = "dev-insecure";
 /** Bars the panel can hide, by their `data-banner` value, so a screenshot shows the page alone. */
 const BANNERS = { localhost: "Localhost bar", "lost-server": "Server lost bar" } as const;
 type Banner = keyof typeof BANNERS;
@@ -67,6 +68,8 @@ export function DevApp(props: { secure: boolean; theme: Theme }) {
   const [hidden, setHidden] = useState(
     () => new Set((Object.keys(BANNERS) as Banner[]).filter((b) => read(hiddenKey(b)) === "yes")),
   );
+  // Renders the app as on an address without HTTPS, to show the secure-connection screen.
+  const [insecure, setInsecure] = useState(() => read(INSECURE_KEY) === "yes");
   const state = STATES[index];
   // A page keeps its last state while another page is picked, so it never goes back to connecting.
   const previews = useRef<NonNullable<Parameters<typeof App>[0]["preview"]>>({});
@@ -92,6 +95,14 @@ export function DevApp(props: { secure: boolean; theme: Theme }) {
     }
     setHidden(next);
     write(hiddenKey(banner), show ? undefined : "yes");
+  };
+  const showInsecure = (on: boolean) => {
+    setInsecure(on);
+    write(INSECURE_KEY, on ? "yes" : undefined);
+    // The screen shows only where a transfer page would.
+    if (on && !shownPage()) {
+      navigate(localizedPath("/send", lang));
+    }
   };
   const toggle = () => {
     setOpen(!open);
@@ -120,7 +131,9 @@ export function DevApp(props: { secure: boolean; theme: Theme }) {
   const button = "rounded border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-50";
   return (
     <>
-      <App {...props} preview={preview} />
+      {/* A new App when the box changes: without HTTPS no transfer page mounts, so no status
+          a picked state reported may outlive its page. */}
+      <App key={String(insecure)} {...props} secure={props.secure && !insecure} preview={preview} />
       {hidden.size > 0 && (
         <style>
           {[...hidden].map((banner) => `[data-banner="${banner}"]{display:none}`).join("")}
@@ -198,6 +211,14 @@ export function DevApp(props: { secure: boolean; theme: Theme }) {
                 {BANNERS[banner]}
               </label>
             ))}
+            <label class="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={!insecure}
+                onChange={(event) => showInsecure(!event.currentTarget.checked)}
+              />
+              Secure connection
+            </label>
           </fieldset>
           <p class="m-0 text-muted-foreground">
             {state

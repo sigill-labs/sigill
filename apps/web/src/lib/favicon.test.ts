@@ -12,12 +12,12 @@ test("an open transfer outranks a finished one, and a finished one outranks none
 });
 
 test("every icon is inline, so no change of status asks the server for anything", () => {
-  const icons = (["idle", "active", "done"] as const).map(faviconHref);
+  const icons = (["idle", "active", "done", "insecure"] as const).map(faviconHref);
   for (const href of icons) {
     assert.match(href, /^data:image\/svg\+xml,/);
     assert.ok(svg(href).endsWith("</svg>"));
   }
-  assert.equal(new Set(icons).size, 3);
+  assert.equal(new Set(icons).size, 4);
 });
 
 test("the idle icon is the drawing in public/favicon.svg, in its colours", () => {
@@ -37,4 +37,10 @@ test("an open transfer shows only the header's green dot, a finished one the che
   assert.ok(!active.includes("M11.25") && !active.includes("<rect"));
   const done = svg(faviconHref("done"));
   assert.ok(done.includes("M9 16.5l5 5") && !done.includes("M11.25"));
+});
+
+test("the secure-connection screen shows a red stop sign, not the logo", () => {
+  const icon = svg(faviconHref("insecure"));
+  assert.ok(icon.includes("#dc2626"));
+  assert.ok(!icon.includes("M11.25") && !icon.includes("#10b981"));
 });

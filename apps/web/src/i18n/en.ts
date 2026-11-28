@@ -108,6 +108,7 @@ export const en = {
     terms: "Terms of use – Fidant",
     security: "Security – Fidant",
     notFound: "Page not found – Fidant",
+    insecure: "Secure connection needed – Fidant",
   },
   notFound: {
     title: "Page not found",
@@ -1308,7 +1309,7 @@ export const en = {
             ],
             [
               "",
-              "The tab's icon as it last was, a green dot while a transfer was open or a check once it was done, in the browser's store of page icons, beside the history entry of each page this tab showed, until you clear history.",
+              "The tab's icon as it last was, a green dot while a transfer was open, a check once it was done or a red stop sign where the page needed a secure connection, in the browser's store of page icons, beside the history entry of each page this tab showed, until you clear history.",
             ],
             [
               "",
@@ -1506,7 +1507,7 @@ export const en = {
             ],
             [
               "",
-              "The tab's icon as it last was, a green dot while the transfer was open or a check once it arrived, in the browser's store of page icons, beside the history entry of each page that tab showed, the link included, until history is cleared.",
+              "The tab's icon as it last was, a green dot while the transfer was open, a check once it arrived or a red stop sign where the page needed a secure connection, in the browser's store of page icons, beside the history entry of each page that tab showed, the link included, until history is cleared.",
             ],
             ["", "Their theme and language choice, in the browser's local storage, until cleared."],
           ],
