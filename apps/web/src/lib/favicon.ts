@@ -10,9 +10,10 @@
 // Every icon is a data: URL, the normal one too, so a change of status asks the server for
 // nothing and the server can't tell from a request that a transfer started, finished or stopped.
 
+import type { Theme } from "../theme.ts";
+
 export type TransferStatus = "idle" | "active" | "done";
 export type TabIcon = TransferStatus | "insecure";
-export type IconTheme = "system" | "light" | "dark";
 
 /** One status for the whole tab: an open transfer outranks a finished one. */
 export function overallStatus(statuses: readonly TransferStatus[]): TransferStatus {
@@ -30,7 +31,7 @@ const tile = (style: string, glyph: string) =>
 
 const LIGHT = colours("#111", "#fff");
 const DARK = colours("#f5f5f5", "#111");
-const LOGO: Record<IconTheme, string> = {
+const LOGO: Record<Theme, string> = {
   system: tile(`${LIGHT}@media (prefers-color-scheme:dark){${DARK}}`, MARK),
   light: tile(LIGHT, MARK),
   dark: tile(DARK, MARK),
@@ -50,7 +51,7 @@ const ICON: Record<Exclude<TabIcon, "idle">, string> = {
     '<rect x="8" y="13.5" width="16" height="5" rx="1" fill="#fff"/>',
 };
 
-export function faviconHref(status: TabIcon, theme: IconTheme = "system"): string {
+export function faviconHref(status: TabIcon, theme: Theme = "system"): string {
   const body = status === "idle" ? LOGO[theme] : ICON[status];
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">${body}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;

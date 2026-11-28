@@ -22,7 +22,7 @@
 
 ## Decision
 
-- The logo flips with the theme. In the light theme it is a black tile (`#111`) with a white mark (`#fff`). In the dark theme it is a light tile (`#f5f5f5`) with a black mark (`#111`). The header's mark draws the same with the page's foreground and background colours.
+- The logo flips with the theme. In the light theme it is a black tile (`#111`) with a white mark (`#fff`). In the dark theme it is a light tile (`#f5f5f5`) with a black mark (`#111`). The header's mark draws the same form in the page's foreground and background colours (`apps/web/src/styles.css`), which are close to these but not the same values.
 - Every drawing of the logo the page controls follows the theme the site's switch chose, and the system's when the switch is on "system". That covers the header's mark and the tab's normal icon, which `faviconHref` in `apps/web/src/lib/favicon.ts` now draws for the chosen theme.
 - `public/favicon.svg` follows the system's theme, because the browser loads it before the page runs. The page replaces it with the icon for the chosen theme as soon as it runs.
 - The bitmaps, `public/favicon.ico` and `public/apple-touch-icon.png`, keep the light theme's form, a black tile with a white mark. They are the exception to the rule above.
