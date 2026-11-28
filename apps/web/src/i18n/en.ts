@@ -331,10 +331,18 @@ export const en = {
     peopleLede:
       "Add each person you want to send to. Each one gets their own link, which works once.",
     linksHeading: "Share the links",
+    linksLede:
+      "Send each person their own link, for example in a chat or an email. Keep this page open until everyone has received it.",
     change: "Change",
     connectionOptions: "Connection options",
-    addEmail: "Add and email link",
-    addEmailCheck: "Add and email link with safety number",
+    addEmail: "Add recipient and email link",
+    addEmailCheck: "Add recipient and email link with safety number",
+    // One entry per kind of link; a later kind (BankID) adds its own.
+    linkKind: {
+      label: "Verification",
+      plain: "Link",
+      check: "Safety number",
+    },
     share: "Share",
     shareFor: (name: string) => `Share link for ${name}`,
     // No-break spaces keep the count on one line.
@@ -378,11 +386,11 @@ export const en = {
     readFailed: "Couldn't read the file. Choose it again.",
     hashPending: "Not ready yet",
     locked: "Remove everyone to change your name or file.",
-    lockedDelivered: "Reload the page to change your name or file.",
+    sendAnother: "Send another file",
     recipientLabel: "Who is it for?",
     recipientPlaceholder: "Their name",
-    add: "Add",
-    addCheck: "Add with safety number",
+    add: "Add recipient",
+    addCheck: "Add recipient with safety number",
     nameError: {
       missing: "Enter a name.",
       taken: "That name is already on the list.",
@@ -392,7 +400,7 @@ export const en = {
     emailLabel: "Their email address",
     emailError: "Enter a valid email address, like name@example.com.",
     emailNotice:
-      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the file. For this link, our server could also put itself between you and the recipient. To see if it does, add them with a safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
+      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the file. For this link, our server could also put itself between you and the recipient. To see if it does, choose Safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
     check: {
       hint: (kind: Kind) =>
         `With a safety number, you compare 6 digits with them by phone or in person before ${items[kind].the} is sent, so you know nobody is in between.`,
@@ -662,11 +670,11 @@ export const en = {
     },
     first: "Write or paste the secret first.",
     locked: "Remove everyone to change your name or secret.",
-    lockedDelivered: "Reload the page to change your name or secret.",
+    sendAnother: "Send another secret",
     allDone: "Every link has delivered the secret",
     summary: (done: number, total: number) => `${done} of ${total} links have delivered the secret`,
     emailNotice:
-      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the secret. For this link, our server could also put itself between you and the recipient. To see if it does, add them with a safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
+      "Our server will see this link's key once, to write the email. It doesn't store or log the key, but our mail service and anyone who reads the email on its way can see the key too. The link, key included, stays in the recipient's mailbox: anyone who can read that mailbox could receive the secret. For this link, our server could also put itself between you and the recipient. To see if it does, choose Safety number and compare it with the recipient. Sending the link yourself avoids all of this.",
     // Only the statuses whose file wording would be wrong; the rest come from send.status.
     status: {
       declined: (name: string) =>
@@ -1475,7 +1483,7 @@ export const en = {
           lines: [
             [
               "",
-              "The link, key included, in the browser's history like any address. Your page refuses the link once the delivery is done, and the link works only while your page is open.",
+              "The link, key included, in the browser's history like any address. The link stops working once the delivery is done, and the link works only while your page is open.",
             ],
             [
               "file",
@@ -1567,9 +1575,9 @@ export const en = {
         ],
         [
           "The recipient confirms delivery",
-          "Nothing. The receipt goes between the browsers. If the link is opened again, your page refuses it as used.",
+          "Nothing from the receipt, which goes between the browsers. If the link is opened again, your page refuses it as used. After you choose Send another, your page sends its list of links again, now empty, so our server refuses the link as unknown.",
           "Nothing.",
-          'A later refusal, with the reason "used".',
+          'A later refusal, with the reason "used", or "unknown" after you choose Send another. Send another itself: that your page now offers no links.',
           "Nothing.",
         ],
         [

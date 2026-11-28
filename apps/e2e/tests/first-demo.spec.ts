@@ -11,6 +11,7 @@ import {
   continueToLinks,
   delivered,
   expect,
+  expectStepAtTop,
   fakeSavePicker,
   test as harness,
   type Leaks,
@@ -135,7 +136,12 @@ async function addRecipient(
   const who = sender.getByLabel("Who is it for?");
   await who.fill(name);
   if (check) {
-    await sender.getByRole("button", { name: "Add with safety number", exact: true }).click();
+    await sender.getByRole("radio", { name: "Safety number" }).check();
+    await sender
+      .getByRole("button", { name: "Add recipient with safety number", exact: true })
+      .click();
+    // The choice stays for the next link; put it back for the helpers that press Enter.
+    await sender.getByRole("radio", { name: "Link", exact: true }).check();
   } else {
     await who.press("Enter");
   }
@@ -290,6 +296,52 @@ for (const size of [0, 48 * 1024 - 1, 48 * 1024, 48 * 1024 + 1]) {
   });
 }
 
+test("Send another file clears the list and the file, keeps the name, and a new file delivers", async ({
+  demo,
+  leaks,
+  canary,
+}) => {
+  const first = makeFile(leaks, canary, 1000);
+  const from = makeName(leaks, canary, "David");
+  const sender = await openSender(demo, first, from);
+  const anna = makeName(leaks, canary, "Anna");
+  const firstLink = await addRecipient(leaks, sender, anna);
+  const again = sender.getByRole("button", { name: "Send another file" });
+  // Only once nothing is on its way.
+  await expect(again).toHaveCount(0);
+  // Step 2's Continue leads to the links until one of them moves.
+  const toLinks = sender
+    .getByRole("region", { name: "Add recipients" })
+    .getByRole("button", { name: "Continue" });
+  await expect(toLinks).toBeEnabled();
+  const recipient = await demo.open("recipient");
+  await recipient.goto(firstLink);
+  await expect(toLinks).toBeDisabled();
+  await download(recipient, first);
+  await expect(delivered(sender, anna)).toBeAttached();
+  await expect(toLinks).toBeDisabled();
+
+  await again.click();
+  await expect(sender.getByLabel("Choose a file")).toBeFocused();
+  await expect(sender.getByText(first.name)).toHaveCount(0);
+  await expect(sender.getByRole("heading", { name: "Share the links" })).toHaveCount(0);
+  await expect(sender.getByLabel("Your name")).toHaveValue(from);
+  await expect(sender.getByLabel("Your name")).toBeEnabled();
+
+  const second = leaks.watch(canaryFile(canary.fork("second file"), { size: 2000 }));
+  await chooseFile(sender, { name: second.name, mimeType: second.mime, buffer: second.bytes });
+  const bo = makeName(leaks, canary, "Bo");
+  const secondLink = await addRecipient(leaks, sender, bo);
+  expect(secondLink).not.toBe(firstLink);
+  const { bytes } = await receive(demo, "recipient-2", secondLink, second, "2.0 KB", from);
+  expect(sha256Hex(bytes)).toBe(sha256Hex(second.bytes));
+  await expect(delivered(sender, bo)).toBeAttached();
+  // The first link was dropped with the list.
+  const late = await demo.open("recipient-3");
+  await late.goto(firstLink);
+  await expect(late.getByText("This link isn't active")).toBeVisible();
+});
+
 test("refuses used, unknown and malformed links", async ({ demo, leaks, canary, baseURL }) => {
   const file = makeFile(leaks, canary, 100_001);
   const sender = await openSender(demo, file);
@@ -401,16 +453,21 @@ test("a declined offer shows as declined, and the link can be reopened", async (
 // No one joins here, so the sender receives no signaling and the demo fixture's frame checks don't apply.
 harness("a held Enter on Remove removes only one recipient", async ({ actor, leaks, canary }) => {
   const demo: Demo = { open: async (name) => (await actor(name)).page };
-  // A tall window, where the page ends soon after step 2 unless it leaves room for the glide that
-  // continueToLinks checks.
+  // A tall window, where the page ends soon after the last step unless that step leaves room for
+  // the glides (continueToLinks checks step 2's, and step 3's is below).
   const sender = await openSender(demo, makeFile(leaks, canary, 10), "", (page) =>
     page.setViewportSize({ width: 1280, height: 1600 }),
   );
   const anna = makeName(leaks, canary, "Anna");
   const erik = makeName(leaks, canary, "Erik");
-  const proceed = sender.getByRole("button", { name: "Continue" });
+  // Step 1's Continue comes first; step 2 has its own.
+  const proceed = sender.getByRole("button", { name: "Continue" }).first();
+  const toLinks = sender
+    .getByRole("region", { name: "Add recipients" })
+    .getByRole("button", { name: "Continue" });
   const who = sender.getByLabel("Who is it for?");
   const links = sender.getByRole("heading", { name: "Share the links" });
+  await expect(toLinks).toBeDisabled();
   // Where the name field sits in the window once filling has scrolled it into view. Step 1 gets
   // shorter when the list locks the file, so scrollY changes, but scroll anchoring keeps the view.
   const at = async () => (await who.boundingBox())?.y;
@@ -429,6 +486,10 @@ harness("a held Enter on Remove removes only one recipient", async ({ actor, lea
   await expect(barText(sender, "Step 2 of 3: Add recipients")).toHaveCount(0);
   await expect(who).toBeFocused();
   expect(await at()).toBe(before);
+  // Step 2's Continue glides to step 3 and moves on to its first button.
+  await toLinks.click();
+  await expectStepAtTop(links);
+  await expect(sender.getByRole("button", { name: `Copy link for ${anna}` })).toBeFocused();
   await addRecipient(leaks, sender, erik);
 
   await sender.getByRole("button", { name: `Remove ${anna}` }).focus();
@@ -446,6 +507,7 @@ harness("a held Enter on Remove removes only one recipient", async ({ actor, lea
   await sender.keyboard.up("Enter");
   await expect(sender.getByText("Enter a name.")).toHaveCount(0);
   await expect(proceed).toBeEnabled();
+  await expect(toLinks).toBeDisabled();
   await expect(links).toHaveCount(0);
 });
 
@@ -568,7 +630,7 @@ test("the sender's name must fit with the file name, and stray drops are ignored
   expect(await cancelled("#recipient-name", someFile)).toEqual([true, true]);
   const name = makeName(leaks, canary, "Anna");
   await page.getByLabel("Who is it for?").fill(name);
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Add recipient", exact: true }).click();
   await expect(page.getByText("Your name and the file name are too long together")).toBeVisible();
   await expect(page.getByRole("list", { name: "Recipients" })).toHaveCount(0);
 
@@ -1796,20 +1858,21 @@ async function addEmailed(
   await sender.getByLabel("Who is it for?").fill(name);
   // Emailing is opt-in; the choice stays ticked for the next recipient.
   await sender.getByLabel("Email the link for me (less private)").check();
-  // With email on, the safety number is the default, so Enter picks it.
+  // Ticking email preselects the safety number, so the Add button and Enter use it.
   await expect(
     sender
       .locator("form")
       .filter({ has: sender.getByLabel("Who is it for?") })
       .locator("button[type=submit]")
       .first(),
-  ).toHaveText("Add and email link with safety number");
+  ).toHaveText("Add recipient and email link with safety number");
   const address = sender.getByLabel("Their email address");
   await address.fill(to);
   if (check) {
     await address.press("Enter");
   } else {
-    await sender.getByRole("button", { name: "Add and email link", exact: true }).click();
+    await sender.getByRole("radio", { name: "Link", exact: true }).check();
+    await sender.getByRole("button", { name: "Add recipient and email link", exact: true }).click();
   }
   await expect(
     recipientRow(sender, name).getByText(`Email sent to ${maskAddress(to)}`),
@@ -2194,7 +2257,12 @@ harness(
       ).toBeVisible();
       // Having opted in, the sender can't add a recipient without an address.
       await page.getByLabel("Who is it for?").fill("Anna");
-      await page.getByRole("button", { name: "Add and email link", exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "Add recipient and email link with safety number",
+          exact: true,
+        })
+        .click();
       await expect(
         page.getByText("Enter a valid email address, like name@example.com."),
       ).toBeVisible();

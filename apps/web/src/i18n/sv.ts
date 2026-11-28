@@ -311,10 +311,17 @@ export const sv: Messages = {
     peopleLede:
       "Lägg till varje person du vill skicka till. Var och en får en egen länk, som fungerar en gång.",
     linksHeading: "Dela länkarna",
+    linksLede:
+      "Skicka varje person deras egen länk, till exempel i en chatt eller ett mejl. Håll den här sidan öppen tills alla har tagit emot den.",
     change: "Byt",
     connectionOptions: "Anslutningsalternativ",
-    addEmail: "Lägg till och mejla länk",
-    addEmailCheck: "Lägg till och mejla länk med kontrollnummer",
+    addEmail: "Lägg till mottagare och mejla länk",
+    addEmailCheck: "Lägg till mottagare och mejla länk med kontrollnummer",
+    linkKind: {
+      label: "Verifiering",
+      plain: "Länk",
+      check: "Kontrollnummer",
+    },
     share: "Dela",
     shareFor: (name: string) => `Dela länken till ${name}`,
     // No-break spaces keep the count on one line.
@@ -358,11 +365,11 @@ export const sv: Messages = {
     readFailed: "Det gick inte att läsa filen. Välj den igen.",
     hashPending: "Inte klar än",
     locked: "Ta bort alla mottagare för att ändra ditt namn eller din fil.",
-    lockedDelivered: "Ladda om sidan för att ändra ditt namn eller din fil.",
+    sendAnother: "Skicka en ny fil",
     recipientLabel: "Vem ska få den?",
     recipientPlaceholder: "Mottagarens namn",
-    add: "Lägg till",
-    addCheck: "Lägg till med kontrollnummer",
+    add: "Lägg till mottagare",
+    addCheck: "Lägg till mottagare med kontrollnummer",
     nameError: {
       missing: "Skriv ett namn.",
       taken: "Det namnet finns redan på listan.",
@@ -372,7 +379,7 @@ export const sv: Messages = {
     emailLabel: "Mottagarens mejladress",
     emailError: "Skriv en giltig mejladress, till exempel namn@example.se.",
     emailNotice:
-      "Vår server ser den här länkens nyckel en gång, för att skriva mejlet. Den sparar eller loggar inte nyckeln, men vår mejltjänst och den som läser mejlet på vägen kan också se nyckeln. Länken, med nyckeln, ligger kvar i mottagarens inkorg: den som kan läsa den inkorgen kan ta emot filen. Vår server skulle också kunna ställa sig mellan er för den här länken. Lägg till med kontrollnummer och jämför numret med mottagaren, så ser du om servern gör det. Om du skickar länken själv slipper du allt detta.",
+      "Vår server ser den här länkens nyckel en gång, för att skriva mejlet. Den sparar eller loggar inte nyckeln, men vår mejltjänst och den som läser mejlet på vägen kan också se nyckeln. Länken, med nyckeln, ligger kvar i mottagarens inkorg: den som kan läsa den inkorgen kan ta emot filen. Vår server skulle också kunna ställa sig mellan er för den här länken. Välj Kontrollnummer och jämför numret med mottagaren, så ser du om servern gör det. Om du skickar länken själv slipper du allt detta.",
     check: {
       hint: (kind: Kind) =>
         `Med kontrollnummer jämför ni sex siffror i telefon eller på plats innan ${items[kind].the} skickas, så att du vet att ingen är emellan.`,
@@ -641,12 +648,12 @@ export const sv: Messages = {
     },
     first: "Skriv eller klistra in hemligheten först.",
     locked: "Ta bort alla mottagare för att ändra ditt namn eller din hemlighet.",
-    lockedDelivered: "Ladda om sidan för att ändra ditt namn eller din hemlighet.",
+    sendAnother: "Skicka en ny hemlighet",
     allDone: "Alla länkar har levererat hemligheten",
     summary: (done: number, total: number) =>
       `${done} av ${total} länkar har levererat hemligheten`,
     emailNotice:
-      "Vår server ser den här länkens nyckel en gång, för att skriva mejlet. Den sparar eller loggar inte nyckeln, men vår mejltjänst och den som läser mejlet på vägen kan också se nyckeln. Länken, med nyckeln, ligger kvar i mottagarens inkorg: den som kan läsa den inkorgen kan ta emot hemligheten. Vår server skulle också kunna ställa sig mellan er för den här länken. Lägg till med kontrollnummer och jämför numret med mottagaren, så ser du om servern gör det. Om du skickar länken själv slipper du allt detta.",
+      "Vår server ser den här länkens nyckel en gång, för att skriva mejlet. Den sparar eller loggar inte nyckeln, men vår mejltjänst och den som läser mejlet på vägen kan också se nyckeln. Länken, med nyckeln, ligger kvar i mottagarens inkorg: den som kan läsa den inkorgen kan ta emot hemligheten. Vår server skulle också kunna ställa sig mellan er för den här länken. Välj Kontrollnummer och jämför numret med mottagaren, så ser du om servern gör det. Om du skickar länken själv slipper du allt detta.",
     status: {
       declined: (name: string) =>
         `Länken till ${name} öppnades och hemligheten avböjdes. Länken fungerar fortfarande.`,
@@ -1441,7 +1448,7 @@ export const sv: Messages = {
           lines: [
             [
               "",
-              "Länken, nyckeln också, i webbläsarens historik som vilken adress som helst. Din sida nekar länken när leveransen är klar, och länken fungerar bara medan din sida är öppen.",
+              "Länken, nyckeln också, i webbläsarens historik som vilken adress som helst. Länken slutar fungera när leveransen är klar, och länken fungerar bara medan din sida är öppen.",
             ],
             [
               "file",
@@ -1533,9 +1540,9 @@ export const sv: Messages = {
         ],
         [
           "Mottagaren bekräftar leveransen",
-          "Ingenting. Kvittot går mellan webbläsarna. Om länken öppnas igen nekar din sida den som använd.",
+          "Ingenting från kvittot, som går mellan webbläsarna. Om länken öppnas igen nekar din sida den som använd. När du väljer Skicka en ny fil eller hemlighet skickar din sida sin lista med länkar igen, nu tom, så vår server nekar länken som okänd.",
           "Ingenting.",
-          'Ett senare nekande, med orsaken "used".',
+          'Ett senare nekande, med orsaken "used", eller "unknown" efter att du valt Skicka en ny fil eller hemlighet. Själva valet: att din sida nu inte erbjuder några länkar.',
           "Ingenting.",
         ],
         [
