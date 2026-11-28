@@ -2,6 +2,7 @@
 
 import { cn } from "cn";
 import type { AnchorHTMLAttributes, ComponentChildren } from "preact";
+import { createPortal } from "preact/compat";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { DropdownMenu } from "radix-ui";
 import { Alert, AlertDescription, AlertTitle } from "#components/ui/alert";
@@ -661,7 +662,7 @@ export function TraceDrawer({
   traces: Log;
   /** The file's facts, shown above the log; empty for a secret. */
   facts: ReadonlyArray<readonly [string, ComponentChildren]>;
-  /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it, and drops its panel, which is outside the page. */
+  /** False while the page is hidden. A hidden page closes the drawer, so it never shows over the next page, and drops its panel, which is outside the page. */
   visible: boolean;
   /** True while the bar behind the button is green, with white text. */
   onGreen: boolean;
@@ -669,8 +670,9 @@ export function TraceDrawer({
   const { t } = useI18n();
   const left = tracesLeft(traces);
   const name = t.traces.button(left);
-  // shadcn's Sheet. On a wide screen the button shows it as a panel beside the page that isn't
-  // modal, until the button or Close hides it; on a narrower one the button opens it as a modal drawer.
+  // shadcn's Sheet, never modal. On a wide screen the button shows it as a panel beside the page,
+  // until the button or Close hides it; on a narrower one it opens a drawer over the page, with a
+  // scrim and a scroll lock (styles.css) of our own.
   const wide = useMediaQuery(WIDE);
   const [pinned, setPinned] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -679,7 +681,7 @@ export function TraceDrawer({
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => setSlot(document.getElementById("traces-slot")), []);
   useEffect(() => {
-    // A hidden page closes the drawer, so it never leaves the next page inert.
+    // A hidden page closes the drawer, so it never shows over the next page.
     if (!visible) {
       setDrawer(false);
     }
@@ -697,6 +699,18 @@ export function TraceDrawer({
       // blocks (docs/decisions/0005-shadcn-ui-on-preact.md). styles.css locks it instead.
       modal={false}
     >
+      {/* The drawer's scrim, as Radix draws none for a sheet that isn't modal. In <body>, as the
+          bar's backdrop blur would hold it inside the bar. A press on it is outside the sheet, so
+          it closes the sheet, and the scrim takes the click the page behind would have got. */}
+      {open && !wide && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              aria-hidden="true"
+              class="fixed inset-0 z-[49] bg-black/50 motion-safe:animate-in motion-safe:fade-in-0"
+            />,
+            document.body,
+          )
+        : null}
       {/* 40 × 40, no taller than the bar's two lines of text; from lg the icon and the word, which
           starts the button's name. The badge counts the traces still kept; its number is in the
           button's name, so screen readers hear it there and not twice. */}
