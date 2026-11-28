@@ -5,7 +5,6 @@ import {
   canaryFile,
   canaryKey,
   chooseFile,
-  continueToLinks,
   delivered,
   expect,
   expectStepAtTop,
@@ -25,8 +24,9 @@ import {
   test,
 } from "../src/transfer.ts";
 
-// The first demo end to end: a sender page sends one file to named recipients, each recipient on
-// their own link and in their own browser context. The harness's leak check runs after every test
+// Delivering a file end to end: a sender page sends one file to named recipients, each recipient on
+// their own link and in their own browser context. The other transfer specs beside this one cover
+// interruptions, a hostile path, the safety number, a server restart and emailed links. The harness's leak check runs after every test
 // and searches everything the browsers sent and received and everything the server logged for the
 // file, its name, type and size, the link secrets and the sender and recipient names.
 
