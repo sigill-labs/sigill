@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { askToNotify, notify, notifyPermission } from "./notify.ts";
+import { notifyIcon } from "./notify-icon.ts";
 
-type Shown = { title: string; body: string | undefined };
+type Shown = { title: string; body: string | undefined; icon: string | undefined };
 
 /** Installs a fake `Notification` and `document`, and returns what was shown. */
 function browser(permission: NotificationPermission, focused: boolean, broken = false): Shown[] {
@@ -15,7 +16,7 @@ function browser(permission: NotificationPermission, focused: boolean, broken = 
       if (broken) {
         throw new TypeError("Illegal constructor");
       }
-      shown.push({ title, body: options?.body });
+      shown.push({ title, body: options?.body, icon: options?.icon });
     }
     close() {}
   }
@@ -31,7 +32,7 @@ afterEach(() => {
 test("notify shows the notification only when allowed and the page is out of focus", () => {
   const shown = browser("granted", false);
   notify("Delivered", "1 of 2");
-  assert.deepEqual(shown, [{ title: "Delivered", body: "1 of 2" }]);
+  assert.deepEqual(shown, [{ title: "Delivered", body: "1 of 2", icon: notifyIcon }]);
 
   const focused = browser("granted", true);
   notify("a", "b");
