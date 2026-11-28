@@ -119,7 +119,7 @@ async function openSender(
     mimeType: file.mime,
     buffer: file.bytes,
   });
-  await page.getByRole("button", { name: "Traces" }).click();
+  await page.getByRole("button", { name: /^Traces/ }).click();
   await expect(page.getByText(sha256Hex(file.bytes))).toBeVisible();
   // The drawer covers the page until it is closed.
   await page.getByRole("button", { name: "Close" }).click();
@@ -268,6 +268,10 @@ test("delivers a file to two recipients with a verified checksum", async ({
   }
   await expect(senderTraces).toContainText(/Connection: Route: Direct, /);
   await expect(senderTraces).not.toContainText(file.name);
+  // The Traces button counts the traces still left, in its name.
+  await expect(sender.getByRole("button", { name: /^Traces/ })).toHaveAccessibleName(
+    /^Traces, \d+ left$/,
+  );
 
   const recipientTraces = received[0]?.page.getByRole("region", { name: "Traces" });
   if (!recipientTraces) {

@@ -87,9 +87,9 @@ test("the send page's toggle switches between a file and a secret, and the addre
   await expect(barText(page, "Step 1 of 3: Share a secret")).toBeInViewport();
   // The traces open from an icon button at the bar's end, inside it at a phone's width too.
   const bar = page.locator("[data-page-bar]").filter({ visible: true });
-  const details = bar.getByRole("button", { name: "Traces" });
+  const details = bar.getByRole("button", { name: /^Traces/ });
   await expect(details).toBeVisible();
-  await expect(details).toHaveAttribute("title", "Traces");
+  await expect(details).toHaveAttribute("title", /^Traces/);
   // The bar is one height at every width, so the button never makes it taller.
   let barHeight: number | undefined;
   const insideBar = async () => {

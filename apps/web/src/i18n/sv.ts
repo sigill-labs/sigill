@@ -58,6 +58,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const traces: TraceTexts = {
   title: "Spår",
+  button: (left) => (left === 0 ? "Spår" : `Spår, ${left} kvar`),
   note: 'Tiderna är när den här sidan såg varje händelse. En tid efter "borta" är när den här sidan såg att spåret försvann. Alla andra slut är så som vår server och vårt relä är byggda att bete sig, vilket den här sidan inte kan kontrollera.',
   empty: "Inget ännu.",
   parts: {

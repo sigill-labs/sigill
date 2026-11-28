@@ -10,7 +10,7 @@ import { useI18n } from "./i18n/I18n.tsx";
 import { LANGUAGE_NAMES, type Lang, localizedPath } from "./i18n/language.ts";
 import { describeTrace } from "./lib/format.ts";
 import type { OpenPath } from "./lib/peer.ts";
-import type { TraceLog as Log } from "./lib/trace-log.ts";
+import { type TraceLog as Log, tracesLeft } from "./lib/trace-log.ts";
 import type { Theme } from "./theme.ts";
 
 export const ICONS = {
@@ -638,6 +638,8 @@ export function TraceDrawer({
   const { t } = useI18n();
   const titleId = useId();
   const drawer = useRef<HTMLDialogElement>(null);
+  const left = tracesLeft(traces);
+  const name = t.traces.button(left);
   // Whether the last press began on the dimmed page, so a text selection dragged out of the drawer doesn't close it.
   const pressedOutside = useRef(false);
   useEffect(() => {
@@ -648,14 +650,15 @@ export function TraceDrawer({
   return (
     <>
       {/* 40 × 40, no taller than the bar's two lines of text. showModal from the button returns
-          focus to it when the drawer closes. */}
+          focus to it when the drawer closes. The badge counts the traces still left; its number
+          is in the button's name, so screen readers hear it there and not twice. */}
       <button
         type="button"
-        aria-label={t.traces.title}
-        title={t.traces.title}
+        aria-label={name}
+        title={name}
         class={cn(
           buttonVariants({ variant: "ghost", size: "icon" }),
-          "size-10 cursor-pointer",
+          "relative size-10 cursor-pointer",
           onGreen
             ? "text-white hover:bg-white/15 hover:text-white focus-visible:border-white focus-visible:ring-white/60 dark:hover:bg-white/15"
             : "text-muted-foreground",
@@ -663,6 +666,17 @@ export function TraceDrawer({
         onClick={() => drawer.current?.showModal()}
       >
         <Icon name="footprints" class="size-5" />
+        {left > 0 && (
+          <span
+            aria-hidden="true"
+            class={cn(
+              "pointer-events-none absolute top-0 right-0 min-w-4 rounded-full px-1 text-center text-[0.625rem] font-semibold leading-4 tabular-nums",
+              onGreen ? "bg-white text-emerald-800" : "bg-foreground text-background",
+            )}
+          >
+            {left > 99 ? "99+" : left}
+          </span>
+        )}
       </button>
       {/* A native dialog, like the safety number's: it holds focus and dims the page without
           injecting a style, which the CSP blocks. A drawer from the right; on a phone it covers

@@ -60,6 +60,8 @@ export type TraceContext = { role: Role; size: (bytes: number) => string };
 export type TraceTexts = {
   /** Names the drawer and the receive page's disclosure that hold the log. */
   title: string;
+  /** The send page's Traces button's name, with how many traces are still left. */
+  button: (left: number) => string;
   note: string;
   empty: string;
   parts: Record<Part, (role: Role) => string>;
@@ -97,6 +99,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 const traces: TraceTexts = {
   title: "Traces",
+  button: (left) => (left === 0 ? "Traces" : `Traces, ${left} left`),
   note: 'Times are when this page saw each event. A "gone at" time is when this page saw the trace end. Every other end is how our server and relay are built to behave, which this page can\'t check.',
   empty: "Nothing yet.",
   parts: {

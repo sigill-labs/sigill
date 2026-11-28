@@ -11,6 +11,7 @@ import {
   type SignalMessage,
   type TraceEvent,
   type TraceLog,
+  tracesLeft,
 } from "./trace-log.ts";
 
 const LINK = "abc123XXXXXXXXXXXXXXXX";
@@ -536,4 +537,17 @@ test("a refusal counts only for the pairing it names, and a held recipient's lef
     "logJoined",
     "logLeft",
   ]);
+});
+
+test("tracesLeft counts the lines not seen to end, without the new-transfer marker", () => {
+  assert.equal(tracesLeft(createTraceLog("sender")), 0);
+  const log = play(
+    "sender",
+    { t: "link-added", link: LINK },
+    ["received", { t: "resume", link: LINK, attempt: OTHER, token: OTHER }],
+    { t: "new-transfer" },
+  );
+  // The link key and the browser's token were seen to end; the server's token is stated.
+  assert.equal(tracesLeft(log), 1);
+  assert.equal(tracesLeft(play("sender", { t: "new-transfer" })), 0);
 });

@@ -207,6 +207,13 @@ export type TraceEntry = {
   readonly open?: string;
 };
 
+/** How many traces the log still shows as left: every line but the new-transfer marker that this page hasn't seen end. */
+export function tracesLeft(log: TraceLog): number {
+  return log.entries.filter(
+    (entry) => entry.what.kind !== "newTransfer" && entry.until.kind !== "seen",
+  ).length;
+}
+
 /** A signaling message, reduced to what the log may show. */
 export type Signal =
   // Sent
