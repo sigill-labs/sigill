@@ -624,6 +624,28 @@ export const sv: Messages = {
       why: "Numret kommer från den här anslutningen. Om någon satt mellan dig och avsändaren skulle era skärmar visa olika nummer.",
       expires: "Kontrollnumret går ut efter 5 minuter.",
     },
+    bar: {
+      connecting: "Ansluter till avsändaren",
+      verify: "Bekräfta din e-post",
+      check: "Jämför kontrollnumret",
+      checkWaiting: "Väntar på avsändaren",
+      offer: "Redo när du är",
+      checked: "Kontrollerad, exakt som skickad",
+      stopped: "Inte mottaget",
+    },
+    notify: {
+      checkTitle: "Kontrollnumret är klart",
+      checkBody: "Läs upp det för avsändaren.",
+      offerTitle: "Redo när du är",
+      offerBody: (secret: boolean) =>
+        secret ? "En hemlighet väntar på dig." : "En fil väntar på dig.",
+      doneBody: (secret: boolean) =>
+        secret
+          ? "Öppna fliken för att se den."
+          : "Vi har kontrollerat den: det är exakt filen som skickades.",
+      stoppedTitle: "Inte mottaget",
+      stoppedBody: "Öppna fliken för att se varför.",
+    },
     whatHappened: "Vad som hände",
     encryptionLabel: "Kryptering",
     encryption:

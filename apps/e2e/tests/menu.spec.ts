@@ -232,13 +232,15 @@ for (const [locale, lang, headings] of [
 test("going back from /send with the traces drawer open leaves the next page usable", async ({
   page,
 }) => {
+  // A phone, where the button opens the traces as a modal drawer.
+  await page.setViewportSize({ width: 390, height: 700 });
   await page.goto("/privacy");
   await nav(page).getByRole("link", { name: "Send" }).click();
   await page.getByRole("button", { name: "Traces" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL(/\/privacy$/);
-  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   // A modal dialog left open in the hidden page would make this page inert.
   await nav(page).getByRole("link", { name: "Send" }).click();
   await expect(page).toHaveURL(/\/send$/);

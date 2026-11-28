@@ -263,7 +263,11 @@ export function App({
         {insecureShown && <InsecurePage />}
         {secure && kept.current.has("receive") && (
           <div id="receive" hidden={route !== "receive"}>
-            <ReceivePage onStatus={setReceiveStatus} preview={preview?.receive} />
+            <ReceivePage
+              onStatus={setReceiveStatus}
+              preview={preview?.receive}
+              shown={route === "receive"}
+            />
           </div>
         )}
         {secure && kept.current.has("send") && (

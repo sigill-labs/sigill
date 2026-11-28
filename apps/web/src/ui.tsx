@@ -2,7 +2,7 @@
 
 import { cn } from "cn";
 import type { AnchorHTMLAttributes, ComponentChildren } from "preact";
-import { useEffect, useId, useRef, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { DropdownMenu } from "radix-ui";
 import { Alert, AlertDescription, AlertTitle } from "#components/ui/alert";
 import { Badge } from "#components/ui/badge";
@@ -632,22 +632,6 @@ export function TraceLog({ log }: { log: Log }) {
   );
 }
 
-/** The receive page's traces: a section with a disclosure, whose summary names it. */
-export function TracePanel({ traces }: { traces: Log }) {
-  const { t } = useI18n();
-  const headingId = useId();
-  return (
-    <section class="mt-10 text-[0.9rem]" aria-labelledby={headingId}>
-      <details>
-        <summary id={headingId} class="cursor-pointer font-medium text-muted-foreground">
-          {t.traces.title}
-        </summary>
-        <TraceLog log={traces} />
-      </details>
-    </section>
-  );
-}
-
 /** Tailwind's `lg`, from which the traces are a panel beside the page; styles.css uses the same width. */
 const WIDE = "(min-width: 64rem)";
 
@@ -666,7 +650,10 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
-/** The send page's "Traces": an icon button, for the bottom bar, that shows and hides the file facts and the trace log, in a panel beside the page on a wide screen and in a drawer on a narrower one. */
+/** How many TraceDrawers show their panel beside the page, so one page hiding doesn't take the room from another's. */
+let panels = 0;
+
+/** A page's "Traces": an icon button, for its bottom bar, that shows and hides the file facts and the trace log, in a panel beside the page on a wide screen and in a drawer on a narrower one. */
 export function TraceDrawer({
   facts,
   visible,
@@ -677,7 +664,7 @@ export function TraceDrawer({
   traces: Log;
   /** The file's facts, shown above the log; empty for a secret. */
   facts: ReadonlyArray<readonly [string, ComponentChildren]>;
-  /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it. */
+  /** False while the page is hidden. A hidden page closes the drawer, so a modal dialog never stays open in it, and hides its panel, which is outside the page. */
   visible: boolean;
   /** True while the bar behind the button is green, with white text. */
   onGreen: boolean;
@@ -690,7 +677,8 @@ export function TraceDrawer({
   const wide = useMediaQuery(WIDE);
   const [pinned, setPinned] = useState(true);
   const [drawer, setDrawer] = useState(false);
-  const open = wide ? pinned : drawer;
+  const open = visible && (wide ? pinned : drawer);
+  const panel = visible && wide && pinned;
   useEffect(() => {
     // A hidden page closes the drawer, so it never leaves the next page inert.
     if (!visible) {
@@ -698,11 +686,19 @@ export function TraceDrawer({
     }
   }, [visible]);
   useEffect(() => {
-    // styles.css makes room for the panel beside the page and the bottom bar.
+    // styles.css makes room for the panel beside the page and the bottom bar. Counted, because
+    // the page that hides may let go after the page that shows took the room.
+    if (!panel) {
+      return;
+    }
     const root = document.documentElement;
-    root.toggleAttribute("data-traces-panel", wide && pinned);
-    return () => root.removeAttribute("data-traces-panel");
-  }, [wide, pinned]);
+    panels += 1;
+    root.setAttribute("data-traces-panel", "");
+    return () => {
+      panels -= 1;
+      root.toggleAttribute("data-traces-panel", panels > 0);
+    };
+  }, [panel]);
   return (
     <Sheet
       open={open}
@@ -735,26 +731,29 @@ export function TraceDrawer({
           </Badge>
         )}
       </SheetTrigger>
-      <SheetContent
-        side="right"
-        showCloseButton={false}
-        aria-describedby={undefined}
-        // The whole screen on a phone; a drawer from the right from sm up; the panel from lg.
-        className="w-full gap-0 overflow-y-auto p-6 text-[0.9rem] max-sm:border-l-0 lg:w-[24rem] lg:shadow-none [&_code]:text-[0.85rem]"
-        // The panel opens with the page and stays beside it: it takes no focus and a click on the
-        // page doesn't close it.
-        onOpenAutoFocus={(event) => wide && event.preventDefault()}
-        onInteractOutside={(event) => wide && event.preventDefault()}
-      >
-        <div class="flex items-center justify-between gap-4">
-          <SheetTitle className="m-0 text-[1.25rem] font-bold">{t.traces.title}</SheetTitle>
-          <SheetClose class={buttonVariants({ variant: "ghost", size: "sm" })}>
-            {t.common.close}
-          </SheetClose>
-        </div>
-        {facts.length > 0 && <Facts rows={facts} />}
-        <TraceLog log={traces} />
-      </SheetContent>
+      {/* A hidden page drops its panel at once, so it doesn't slide out over the page that shows. */}
+      {visible && (
+        <SheetContent
+          side="right"
+          showCloseButton={false}
+          aria-describedby={undefined}
+          // The whole screen on a phone; a drawer from the right from sm up; the panel from lg.
+          className="w-full gap-0 overflow-y-auto p-6 text-[0.9rem] max-sm:border-l-0 lg:w-[24rem] lg:shadow-none [&_code]:text-[0.85rem]"
+          // The panel opens with the page and stays beside it: it takes no focus and a click on the
+          // page doesn't close it.
+          onOpenAutoFocus={(event) => wide && event.preventDefault()}
+          onInteractOutside={(event) => wide && event.preventDefault()}
+        >
+          <div class="flex items-center justify-between gap-4">
+            <SheetTitle className="m-0 text-[1.25rem] font-bold">{t.traces.title}</SheetTitle>
+            <SheetClose class={buttonVariants({ variant: "ghost", size: "sm" })}>
+              {t.common.close}
+            </SheetClose>
+          </div>
+          {facts.length > 0 && <Facts rows={facts} />}
+          <TraceLog log={traces} />
+        </SheetContent>
+      )}
     </Sheet>
   );
 }

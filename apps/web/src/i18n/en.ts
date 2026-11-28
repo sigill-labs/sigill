@@ -672,6 +672,30 @@ export const en = {
       why: "The number comes from this connection. If someone sat between you and the sender, your screens would show different numbers.",
       expires: "The safety number expires after 5 minutes.",
     },
+    // The bottom bar: short, at most two rows beside the bell and the Traces button.
+    bar: {
+      connecting: "Connecting to the sender",
+      verify: "Confirm your email",
+      check: "Compare the safety number",
+      checkWaiting: "Waiting for the sender",
+      offer: "Ready when you are",
+      checked: "Checked, exactly as sent",
+      stopped: "Not received",
+    },
+    // Fixed text only: the system keeps a notification outside the page, so never a name, size or key.
+    notify: {
+      checkTitle: "Safety number ready",
+      checkBody: "Read it to the sender.",
+      offerTitle: "Ready when you are",
+      offerBody: (secret: boolean): string =>
+        secret ? "A secret is waiting for you." : "A file is waiting for you.",
+      doneBody: (secret: boolean): string =>
+        secret
+          ? "Open the tab to see it."
+          : "We checked it: this is exactly the file that was sent.",
+      stoppedTitle: "Not received",
+      stoppedBody: "Open the tab to see why.",
+    },
     whatHappened: "What happened",
     encryptionLabel: "Encryption",
     encryption: "AES-256-GCM, end to end. The key is in your link and never leaves this browser.",

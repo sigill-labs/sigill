@@ -119,10 +119,8 @@ async function openSender(
     mimeType: file.mime,
     buffer: file.bytes,
   });
-  await page.getByRole("button", { name: /^Traces/ }).click();
+  // The traces panel, with the file's facts, is open beside the page on a wide screen.
   await expect(page.getByText(sha256Hex(file.bytes))).toBeVisible();
-  // The drawer covers the page until it is closed.
-  await page.getByRole("button", { name: "Close" }).click();
   return page;
 }
 
@@ -171,11 +169,11 @@ async function receive(
   await expect(page.getByText(sizeText, { exact: true })).toBeVisible();
   await page.getByText("Technical details").click();
   await expect(page.getByText(`${file.size.toLocaleString("en-US")} bytes`)).toBeVisible();
-  await expect(page.getByRole("region", { name: "Traces" })).toContainText(
+  await expect(page.getByRole("dialog", { name: "Traces" })).toContainText(
     /Server, Memory, [^:]*: Paired this page with the sender's on link ID/,
   );
   if (sender) {
-    await expect(sender.getByRole("dialog", { name: "Traces", includeHidden: true })).toContainText(
+    await expect(sender.getByRole("dialog", { name: "Traces" })).toContainText(
       /Server, Memory, [^:]*: Paired a recipient's page with link ID/,
     );
   }
@@ -261,7 +259,7 @@ test("delivers a file to two recipients with a verified checksum", async ({
 
   // The drawer's trace log names each link by its server-side prefix, never the file.
   const prefix = (link: string) => `${new URL(link).pathname.replace(/^\/r\//, "").slice(0, 6)}…`;
-  const senderTraces = sender.getByRole("dialog", { name: "Traces", includeHidden: true });
+  const senderTraces = sender.getByRole("dialog", { name: "Traces" });
   await expect(senderTraces).toContainText(/Passed on [1-9]\d* encrypted setup messages? \(/);
   for (const link of links) {
     await expect(senderTraces).toContainText(`link ID ${prefix(link)}`);
@@ -273,7 +271,7 @@ test("delivers a file to two recipients with a verified checksum", async ({
     /^Traces, \d+ still kept$/,
   );
 
-  const recipientTraces = received[0]?.page.getByRole("region", { name: "Traces" });
+  const recipientTraces = received[0]?.page.getByRole("dialog", { name: "Traces" });
   if (!recipientTraces) {
     throw new Error("no recipient");
   }
@@ -376,9 +374,7 @@ test("refuses used, unknown and malformed links", async ({ demo, leaks, canary, 
   const malformed = await demo.open("malformed");
   await malformed.goto("/r/not-a-link#nope");
   await expect(malformed.getByText("This link doesn't work")).toBeVisible();
-  await expect(malformed.getByRole("region", { name: "Traces", includeHidden: true })).toHaveCount(
-    0,
-  );
+  await expect(malformed.getByRole("button", { name: /^Traces/ })).toHaveCount(0);
 });
 
 test("a sender whose connection setup fails logs why and lets the recipient try again", async ({
@@ -590,9 +586,8 @@ harness("a recipient who can't reach the server is told so", async ({ actor, lea
     recipient.getByText("The server connects you to the sender. Check your internet connection."),
   ).toBeVisible();
   await expect(recipient.getByRole("button", { name: "Try again" })).toBeVisible();
-  await expect(recipient.getByRole("region", { name: "Traces", includeHidden: true })).toHaveCount(
-    0,
-  );
+  // The page never reached the server, so no trace names it.
+  await expect(recipient.getByRole("dialog", { name: "Traces" })).not.toContainText(/\bServer,/);
 });
 
 test("the sender's name must fit with the file name, and stray drops are ignored", async ({
@@ -668,7 +663,7 @@ test("a waiting recipient sees when the sender goes offline", async ({ demo, lea
   await expect(recipient.getByRole("button", { name: "Download" })).toBeVisible();
   await sender.close();
   await expect(recipient.getByText("The sender's page is closed")).toBeVisible();
-  await expect(recipient.getByRole("region", { name: "Traces" })).toContainText(
+  await expect(recipient.getByRole("dialog", { name: "Traces" })).toContainText(
     /Server, Memory, lasted [^:]*: This page connected\./,
   );
 });

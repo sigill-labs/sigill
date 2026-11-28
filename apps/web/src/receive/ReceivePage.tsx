@@ -99,7 +99,7 @@
 import { type CodeResult, isLinkId } from "@fidant/protocol";
 import { cn } from "cn";
 import { type ComponentChildren, Fragment, type VNode } from "preact";
-import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import { Button, buttonVariants } from "#components/ui/button";
 import { Card, CardContent } from "#components/ui/card";
 import { Input } from "#components/ui/input";
@@ -118,6 +118,7 @@ import {
 } from "../lib/format.ts";
 import { deriveSignalKey } from "../lib/keys.ts";
 import { LINK_ID_BYTES, parseRecipientLocation } from "../lib/link.ts";
+import { askToNotify, notify, notifyPermission } from "../lib/notify.ts";
 import { createRecipientPeer, type OpenPath, type Peer, type PeerOpenInfo } from "../lib/peer.ts";
 import type { FileOffer, Resumable } from "../lib/receive-file.ts";
 import { ReceiveError, receiveFile } from "../lib/receive-file.ts";
@@ -142,7 +143,13 @@ import {
   type Sink,
 } from "../lib/sink.ts";
 import { decodeText, isTextOffer } from "../lib/text-secret.ts";
-import { createTraceLog, fromMessage, recordAt, type TraceEvent } from "../lib/trace-log.ts";
+import {
+  createTraceLog,
+  fromMessage,
+  type TraceLog as Log,
+  recordAt,
+  type TraceEvent,
+} from "../lib/trace-log.ts";
 import {
   CheckNumber,
   Direct,
@@ -154,7 +161,7 @@ import {
   Problem,
   SwapLabel,
   TechDetails,
-  TracePanel,
+  TraceDrawer,
   useCopyNote,
 } from "../ui.tsx";
 
@@ -269,10 +276,13 @@ export type ReceivePreview = {
 export function ReceivePage({
   onStatus,
   preview,
+  shown,
 }: {
   /** Told "active" while a file or text is offered or arriving, which leaving the tab would lose, and "done" once it has arrived. */
   onStatus(status: TransferStatus): void;
   preview?: ReceivePreview | undefined;
+  /** False while another page is showing and this one is kept hidden. */
+  shown: boolean;
 }) {
   const { t, lang } = useI18n();
   const problemFor = (view: { problem: ProblemKey; text?: boolean }): ProblemText => {
@@ -305,7 +315,21 @@ export function ReceivePage({
   // Only in page memory, and on the page rather than the attempt: Try again keeps it, with a marker line.
   const [traces, addTrace] = useReducer(recordAt, "recipient", createTraceLog);
   const trace = (event: TraceEvent) => addTrace({ event, at: Date.now() });
-  const [reachedServer, setReachedServer] = useState(false);
+  const [canAskToNotify, setCanAskToNotify] = useState(false);
+  const [notifyAnswer, setNotifyAnswer] = useState<"on" | "blocked" | undefined>(undefined);
+  const notifyId = useId();
+  // When the answer replaces the button, it takes the focus the button (or nothing) held.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (
+      notifyAnswer &&
+      (active === document.body || active === document.getElementById(`${notifyId}-me`))
+    ) {
+      document.getElementById(`${notifyId}-answer`)?.focus();
+    }
+  }, [notifyAnswer]);
+  // Never during prerender.
+  useEffect(() => setCanAskToNotify(notifyPermission() === "default"), []);
   const [path, setPath] = useState<OpenPath | undefined>(undefined);
   const attemptRef = useRef<Attempt | undefined>(undefined);
   const codeAsked = useRef<string | undefined>(undefined);
@@ -478,7 +502,6 @@ export function ReceivePage({
     signaling.onOpen(() => {
       // Before the `resume` or `join` below, which the log reads against this socket.
       trace({ t: "socket-open" });
-      setReachedServer(true);
       if (!current()) {
         return;
       }
@@ -912,7 +935,6 @@ export function ReceivePage({
     }
     setView(preview.view ?? { s: "connecting" });
     setPicking(false);
-    setReachedServer(true);
     setPath(preview.path);
   }, [preview]);
 
@@ -925,11 +947,29 @@ export function ReceivePage({
     }
     focusHeading();
   }, [view.s]);
+  // Only fixed text: the system keeps a notification outside the page. notify() shows nothing
+  // while the page has focus or without the recipient's permission.
   useEffect(() => {
-    if (view.s === "done" && !preview) {
+    if (preview) {
+      return;
+    }
+    const words = t.receive.notify;
+    if (view.s === "done") {
       trace({ t: "received", secret: view.offer.text });
+      notify((view.offer.text ? t.secret : t.receive).doneTitle, words.doneBody(view.offer.text));
+    } else if (view.s === "offer") {
+      notify(words.offerTitle, words.offerBody(view.offer.text));
+    } else if (view.s === "failed" || view.s === "refused") {
+      notify(words.stoppedTitle, words.stoppedBody);
     }
   }, [view.s]);
+  // The safety number needs the recipient once it shows, before they said what the sender read.
+  const checkReady = view.s === "check" && view.number !== undefined && view.said === undefined;
+  useEffect(() => {
+    if (checkReady && !preview) {
+      notify(t.receive.notify.checkTitle, t.receive.notify.checkBody);
+    }
+  }, [checkReady]);
   // Try again and Show again: the user starts a new attempt, which the log marks.
   const startAgain = () => {
     trace({ t: "new-transfer" });
@@ -1040,7 +1080,6 @@ export function ReceivePage({
   }
 
   const emailed = link?.mark !== undefined;
-  const panel = reachedServer ? <TracePanel traces={traces} /> : null;
 
   let body: VNode;
   switch (view.s) {
@@ -1274,8 +1313,161 @@ export function ReceivePage({
     <Page tall>
       {/* A new key per step makes its heading a new node, so moving focus there is announced. */}
       <Fragment key={view.s}>{body}</Fragment>
-      {panel}
+      <ReceiveBar
+        view={view}
+        traces={traces}
+        visible={shown}
+        notifyId={notifyId}
+        canAskToNotify={canAskToNotify}
+        notifyAnswer={notifyAnswer}
+        onNotify={async () => {
+          const answer = await askToNotify();
+          if (answer !== "default") {
+            setCanAskToNotify(false);
+            setNotifyAnswer(answer === "granted" ? "on" : "blocked");
+          }
+        }}
+      />
     </Page>
+  );
+}
+
+/**
+ * The page's bottom bar, like the send page's: what is happening now, Notify me while the
+ * recipient waits, and the Traces button. Green once the file or secret has arrived.
+ */
+function ReceiveBar({
+  view,
+  traces,
+  visible,
+  notifyId,
+  canAskToNotify,
+  notifyAnswer,
+  onNotify,
+}: {
+  view: View;
+  traces: Log;
+  visible: boolean;
+  notifyId: string;
+  canAskToNotify: boolean;
+  notifyAnswer: "on" | "blocked" | undefined;
+  onNotify(): void;
+}) {
+  const { t } = useI18n();
+  const { bar } = t.receive;
+  const secret = "offer" in view ? view.offer.text : "text" in view ? view.text === true : false;
+  const words = secret ? t.secret : t.receive;
+  const done = view.s === "done";
+  // While the recipient waits for the sender or for the file, Notify me is worth offering.
+  const waiting =
+    view.s === "connecting" || view.s === "receiving" || (view.s === "check" && view.said === true);
+  const [main, sub] = ((): [string, string | undefined] => {
+    switch (view.s) {
+      case "connecting":
+        return [bar.connecting, t.send.keepOpen];
+      case "verify":
+        return [bar.verify, t.send.keepOpen];
+      case "check":
+        return [view.said ? bar.checkWaiting : bar.check, t.send.keepOpen];
+      case "offer":
+        return [bar.offer, undefined];
+      case "receiving":
+        return [words.receivingTitle, t.send.keepOpen];
+      case "done":
+        return [words.doneTitle, bar.checked];
+      case "declined":
+        return [words.declinedTitle, undefined];
+      case "refused":
+      case "failed":
+        return [bar.stopped, undefined];
+    }
+  })();
+  const progress =
+    view.s === "done"
+      ? 1
+      : view.s === "receiving"
+        ? view.offer.size === 0
+          ? 0
+          : view.bytes / view.offer.size
+        : 0;
+  return (
+    <div
+      data-bottom-bar
+      data-page-bar
+      // White on emerald-700 is 5.5:1.
+      class={`fixed inset-x-0 bottom-0 z-40 overflow-hidden bg-background/80 px-4 py-1.5 backdrop-blur-xl transition-colors duration-700 motion-reduce:transition-none ${done ? "text-white" : ""}`}
+    >
+      {/* The green that takes the bar once the file or secret has arrived, as on the send page. */}
+      <div
+        class={`absolute inset-x-0 top-0 h-[170%] bg-linear-to-b from-emerald-700 from-60% to-transparent transition-transform duration-700 ease-out motion-reduce:transition-none ${done ? "translate-y-0" : "-translate-y-full"}`}
+        aria-hidden="true"
+      />
+      {/* The bar's top edge: a track that fills while the file arrives and stays full once done. */}
+      <div class="absolute inset-x-0 top-0 h-1 bg-border" aria-hidden="true">
+        {progress > 0 && (
+          <div
+            class={`h-full transition-[width,background-color] motion-reduce:transition-none ${done ? "bg-emerald-400" : "bg-emerald-600"}`}
+            style={{ width: `${progress * 100}%` }}
+          />
+        )}
+      </div>
+      <div class="relative mx-auto flex min-h-[3.95rem] max-w-xl items-center gap-2 sm:gap-3">
+        {/* The step's heading says the same, so this is no live region. */}
+        <p class="m-0 flex min-w-0 flex-1 items-center gap-3 text-[0.9rem] leading-snug font-medium hyphens-auto wrap-anywhere">
+          {done ? (
+            <Icon name="check" class="size-4 flex-none" />
+          ) : (
+            <span class="flex size-4 flex-none items-center justify-center" aria-hidden="true">
+              <span
+                class={
+                  waiting
+                    ? "size-2 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+                    : "size-2 rounded-full bg-muted-foreground"
+                }
+              />
+            </span>
+          )}
+          <span>
+            <span class="block">{main}</span>
+            {sub && (
+              <span class={`block font-normal ${done ? "" : "text-muted-foreground"}`}>{sub}</span>
+            )}
+          </span>
+        </p>
+        {/* Notify me and the browser's answer share one grid cell, the hidden one keeping its
+            space, so the bar's text doesn't move as they swap. */}
+        {(canAskToNotify || notifyAnswer) && (
+          <div class="grid flex-none items-center justify-items-end">
+            <Button
+              id={`${notifyId}-me`}
+              type="button"
+              variant="outline"
+              size="sm"
+              // A bell alone on a phone, the bell and the words from sm up, as on the send page.
+              className={`col-start-1 row-start-1 size-9 px-0 sm:h-7 sm:w-auto sm:px-2.5 ${waiting && canAskToNotify ? "" : "invisible"}`}
+              title={t.send.notifyMe}
+              onClick={onNotify}
+            >
+              <Icon name="bell" class="size-4" />
+              <span class="sr-only sm:not-sr-only">{t.send.notifyMe}</span>
+            </Button>
+            {notifyAnswer && (
+              // Takes the focus the button held, and tells the recipient what the browser answered.
+              <p
+                id={`${notifyId}-answer`}
+                tabIndex={-1}
+                role="status"
+                class={`col-start-1 row-start-1 m-0 w-max max-w-28 text-right text-[0.8rem] leading-tight ${canAskToNotify || done ? "invisible" : ""} text-muted-foreground`}
+              >
+                {notifyAnswer === "on" ? t.send.notifyOn : t.send.notifyBlocked}
+              </p>
+            )}
+          </div>
+        )}
+        {/* The file's name never shows in the traces; its size and type are on the page already. */}
+        <TraceDrawer onGreen={done} visible={visible} traces={traces} facts={[]} />
+      </div>
+    </div>
   );
 }
 

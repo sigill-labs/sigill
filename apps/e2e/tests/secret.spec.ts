@@ -120,17 +120,14 @@ test("a text goes from /send/secret to the recipient, who shows and copies it", 
   const link = await share(leaks, sender, text, from, name);
   await expect(field).toBeVisible();
   await expect.poll(() => field.evaluate((el) => (el as HTMLTextAreaElement).value)).toBe(text);
-  // The file page stays mounted and hidden, with a drawer of its own.
-  const senderTraces = sender.locator("main:not([hidden] *)").getByRole("dialog", {
-    name: "Traces",
-    includeHidden: true,
-  });
+  // The file page stays mounted and hidden, and its own panel closed, so this is the secret page's.
+  const senderTraces = sender.getByRole("dialog", { name: "Traces" });
   await expect(senderTraces).toContainText("never the part of the link that unlocks it");
   await expect(senderTraces).not.toContainText(/\bfiles?\b/i);
 
   const { page, downloads } = await openRecipient(actor, link);
   await expect(page.getByRole("heading", { name: `${from} sent you a secret` })).toBeFocused();
-  const recipientTraces = page.getByRole("region", { name: "Traces" });
+  const recipientTraces = page.getByRole("dialog", { name: "Traces" });
   await expect(recipientTraces).toContainText(/Connection, [^:]*: Route: direct, /);
   await expect(recipientTraces).not.toContainText(/\bfiles?\b/i);
   await expect(page.getByText("Name typed by the sender, not verified.")).toBeVisible();
