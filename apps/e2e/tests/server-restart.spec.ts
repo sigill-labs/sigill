@@ -2,8 +2,8 @@
 // recipients with an open channel, still connecting or waiting for a late sender get the file.
 // Specs run one at a time in file-name order, and for 60 s after a restart the server answers
 // `starting` instead of `unknown` for a link nobody hosts (decision 0018). So a spec that expects
-// "This link isn't active" for such a link must sort before this file and sent-by-email.spec.ts,
-// which restart the server.
+// "This link isn't active" for such a link must sort before every spec that restarts the server
+// (src/spec-order.test.ts checks it).
 
 import type { Page } from "@playwright/test";
 import { delivered, expect, makeName, recipientRow } from "../src/fixtures.ts";

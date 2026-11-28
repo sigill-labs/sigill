@@ -26,9 +26,10 @@ import {
 
 // Delivering a file end to end: a sender page sends one file to named recipients, each recipient on
 // their own link and in their own browser context. The other transfer specs beside this one cover
-// interruptions, a hostile path, the safety number, a server restart and emailed links. The harness's leak check runs after every test
-// and searches everything the browsers sent and received and everything the server logged for the
-// file, its name, type and size, the link secrets and the sender and recipient names.
+// interruptions, a hostile path, the safety number, a server restart and emailed links. The
+// harness's leak check runs after every test and searches everything the browsers sent and
+// received and everything the server logged for the file, its name, type and size, the link
+// secrets and the sender and recipient names.
 
 // The 8 MiB transfer and its leak scan take longer than Playwright's default.
 test.describe.configure({ timeout: 90_000 });
